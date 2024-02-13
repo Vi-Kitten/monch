@@ -1,5 +1,6 @@
+#![feature(decl_macro)]
 
-enum ParseError<Msg = String> {
+pub enum ParseError<Msg = String> {
     Expected(Msg),
     Context(Msg, Box<ParseError>),
     Bundle(Vec<ParseError>)
@@ -9,14 +10,12 @@ impl<F, I, T, E> Parser<I, T, E> for F where
     F: for<'i> Fn(&'i mut I) -> Result<T, E>,
     I: Iterator + Clone
 {
-
     fn parse(&self, iter: &mut I) -> Result<T, E> {
         self(iter)
     }
-
 }
 
-fn ok_parse<I, T, E>(t: T) -> impl Parser<I, T, E> where
+pub fn parse_ok<I, T, E>(t: T) -> impl Parser<I, T, E> where
     I: Iterator + Clone,
     T: Clone
 {
@@ -25,7 +24,7 @@ fn ok_parse<I, T, E>(t: T) -> impl Parser<I, T, E> where
     }
 }
 
-fn err_parse<I, T, E>(e: E) -> impl Parser<I, T, E> where
+pub fn parse_err<I, T, E>(e: E) -> impl Parser<I, T, E> where
     I: Iterator + Clone,
     E: Clone
 {
@@ -34,11 +33,37 @@ fn err_parse<I, T, E>(e: E) -> impl Parser<I, T, E> where
     }
 }
 
-trait Parser<I, T, E = ParseError> where
+pub macro combine {
+    ($($p:expr),* $(, => $q:expr $(, $r:expr)*)*) => {
+        |iter: &mut _| {
+            $($p.discard().parse(iter)?;)*
+            Ok(($({
+                    let o = $q.parse(iter)?;
+                    $($r.discard().parse(iter)?;)*
+                    o
+            }),*))
+        }
+    }
+}
+
+pub macro apply {
+    ($f:expr; $($p:expr),* $(, => $q:expr $(, $r:expr)*)*) => {
+        |iter: &mut _| {
+            $($p.discard().parse(iter)?;)*
+            Ok($f($({
+                    let o = $q.parse(iter)?;
+                    $($r.discard().parse(iter)?;)*
+                    o
+            }),*))
+        }
+    }
+}
+
+pub trait Parser<I, T, E = ParseError> where
     I: Iterator + Clone
 {
 
-    fn parse(&self, iter: &mut I) -> Result<T, E>;       
+    fn parse(&self, iter: &mut I) -> Result<T, E>;
 
     fn discard(&self) -> impl Parser<I, (), E> {
         move |iter: &mut I| {
@@ -178,14 +203,12 @@ trait Parser<I, T, E = ParseError> where
         move |iter: &mut I| {
             let mut values = vec![];
             let u = loop {
-                match match end.parse(iter) {
-                    Ok(u) => break u,
-                    Err(e) => (e, self.parse(iter)),
-                } {
-                    (_, Ok(val)) => values.push(val),
-                    (e, Err(_)) => return Err(e),
+                match end.parse(iter).or_else(|e| Err(self.parse(iter).map_err(|_| e))) {
+                    Ok(u) => break Ok(u),
+                    Err(Ok(val)) => values.push(val),
+                    Err(Err(e)) => break Err(e),
                 }
-            };
+            }?;
             Ok((values, u))
         }
     }
