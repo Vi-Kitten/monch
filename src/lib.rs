@@ -93,7 +93,11 @@ pub trait Parser<I, T, E = ParseError> where
     }
 
     fn attempt_parse(&self, iter: &mut I) -> Result<T, E> {
-        self.attempt().parse(iter)
+        let backup = iter.clone();
+        self.parse(iter).map_err(|e| {
+            *iter = backup;
+            e                
+        })
     }
 
     // backtrack on success
@@ -107,7 +111,10 @@ pub trait Parser<I, T, E = ParseError> where
     }
 
     fn scrying_parse(&self, iter: &mut I) -> Result<T, E> {
-        self.scry().parse(iter)
+        let backup = iter.clone();
+        let val = self.parse(iter)?;
+        *iter = backup;
+        Ok(val)
     }
 
     // always backtrack
@@ -118,7 +125,7 @@ pub trait Parser<I, T, E = ParseError> where
     }
 
     fn backtracking_parse(&self, iter: &mut I) -> Result<T, E> {
-        self.backtrack().parse(iter)
+        self.parse(&mut iter.clone())
     }
 
     //* Value mapping
@@ -283,10 +290,9 @@ pub trait Parser<I, T, E = ParseError> where
     }
 
     fn attempt_many<F>(&self) -> impl Parser<I, Vec<T>, F> {
-        let p = self.attempt();
         move |iter: &mut I| {
             let mut values = vec![];
-            while let Ok(val) = p.parse(iter) {
+            while let Ok(val) = self.attempt_parse(iter) {
                 values.push(val)
             }
             Ok(values)
@@ -304,10 +310,9 @@ pub trait Parser<I, T, E = ParseError> where
     }
 
     fn attempt_some(&self) -> impl Parser<I, Vec<T>, E> {
-        let p = self.attempt();
         move |iter: &mut I| {
-            let val = p.parse(iter)?;
-            p.many().parse(iter).map(|mut values| {
+            let val = self.attempt_parse(iter)?;
+            self.attempt_many().parse(iter).map(|mut values| {
                 values.insert(0, val);
                 values
             })
@@ -329,11 +334,10 @@ pub trait Parser<I, T, E = ParseError> where
     }
 
     fn attempt_least_until<U, F>(&self, end: &impl Parser<I, U, F>) -> impl Parser<I, (Vec<T>, U), F> {
-        let p = self.attempt();
         move |iter: &mut I| {
             let mut values = vec![];
             let u = loop {
-                match end.parse(iter).or_else(|e| Err(p.parse(iter).map_err(|_| e))) {
+                match end.parse(iter).or_else(|e| Err(self.attempt_parse(iter).map_err(|_| e))) {
                     Ok(u) => break Ok(u),
                     Err(Ok(val)) => values.push(val),
                     Err(Err(e)) => break Err(e),
@@ -375,13 +379,12 @@ pub trait Parser<I, T, E = ParseError> where
     }
 
     fn attempt_most_until<U, F>(&self, end: &impl Parser<I, U, F>) -> impl Parser<I, (Vec<T>, U), E> {
-        let p = self.attempt();
         move |iter: &mut I| {
             let mut stack = vec![iter.clone()];
             let mut values = vec![];
             let e = loop {
                 let mut child = stack.last().unwrap().clone();
-                let res = p.parse(&mut child);
+                let res = self.attempt_parse(&mut child);
                 stack.push(child);
                 match res {
                     Ok(val) => values.push(val),
