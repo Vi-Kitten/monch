@@ -1,5 +1,8 @@
 #![feature(decl_macro)]
 
+#[cfg(test)]
+mod tests;
+
 pub enum ParseError<Msg = String> {
     Expected(Msg),
     Context(Msg, Box<ParseError>),
@@ -12,24 +15,6 @@ impl<F, I, T, E> Parser<I, T, E> for F where
 {
     fn parse(&self, iter: &mut I) -> Result<T, E> {
         self(iter)
-    }
-}
-
-pub fn parse_ok<I, T, E>(t: T) -> impl Parser<I, T, E> where
-    I: Iterator + Clone,
-    T: Clone
-{
-    move |_: &mut I| {
-        Ok(t.clone())
-    }
-}
-
-pub fn parse_err<I, T, E>(e: E) -> impl Parser<I, T, E> where
-    I: Iterator + Clone,
-    E: Clone
-{
-    move |_: &mut I| {
-        Err(e.clone())
     }
 }
 
@@ -59,10 +44,32 @@ pub macro apply {
     }
 }
 
+pub mod parser {
+
+}
+
 pub trait Parser<I, T, E = ParseError> where
     I: Iterator + Clone
 {
     fn parse(&self, iter: &mut I) -> Result<T, E>;
+
+    fn parse_ok(t: T) -> impl Parser<I, T, E> where
+        I: Iterator + Clone,
+        T: Clone
+    {
+        move |_iter: &mut I| {
+            Ok(t.clone())
+        }
+    }
+    
+    fn parse_err(e: E) -> impl Parser<I, T, E> where
+        I: Iterator + Clone,
+        E: Clone
+    {
+        move |_iter: &mut I| {
+            Err(e.clone())
+        }
+    }
 
     fn discard(&self) -> impl Parser<I, (), E> {
         move |iter: &mut I| {
