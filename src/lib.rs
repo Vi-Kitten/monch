@@ -1,4 +1,5 @@
 #![feature(decl_macro)]
+#![feature(never_type)]
 
 pub enum ParseError<Msg = String> {
     UnexpectedEnd,
@@ -86,7 +87,7 @@ pub trait Parser<I, T, E = ParseError> where
         }
     }
 
-    fn scrying_parse(&self, iter: &mut I) -> Result<T, E> {
+    fn scry_parse(&self, iter: &mut I) -> Result<T, E> {
         let backup = iter.clone();
         let val = self.parse(iter)?;
         *iter = backup;
@@ -100,7 +101,7 @@ pub trait Parser<I, T, E = ParseError> where
         }
     }
 
-    fn backtracking_parse(&self, iter: &mut I) -> Result<T, E> {
+    fn backtrack_parse(&self, iter: &mut I) -> Result<T, E> {
         self.parse(&mut iter.clone())
     }
 
@@ -120,13 +121,13 @@ pub trait Parser<I, T, E = ParseError> where
 
     fn scry_and_then<U>(self, f: impl Fn(T) -> Result<U, E>) -> impl Parser<I, U, E> {
         move |iter: &mut I| {
-            self.scrying_parse(iter).and_then(&f)
+            self.scry_parse(iter).and_then(&f)
         }
     }
 
     fn backtrack_and_then<U>(self, f: impl Fn(T) -> Result<U, E>) -> impl Parser<I, U, E> {
         move |iter: &mut I| {
-            self.backtracking_parse(iter).and_then(&f)
+            self.backtrack_parse(iter).and_then(&f)
         }
     }
 
@@ -138,13 +139,13 @@ pub trait Parser<I, T, E = ParseError> where
 
     fn scry_and_compose<U>(self, p: impl Parser<I, U, E>) -> impl Parser<I, U, E> {
         move |iter: &mut I| {
-            self.scrying_parse(iter).and_then(|_| p.parse(iter))
+            self.scry_parse(iter).and_then(|_| p.parse(iter))
         }
     }
 
     fn backtrack_and_compose<U>(self, p: impl Parser<I, U, E>) -> impl Parser<I, U, E> {
         move |iter: &mut I| {
-            self.backtracking_parse(iter).and_then(|_| p.parse(iter))
+            self.backtrack_parse(iter).and_then(|_| p.parse(iter))
         }
     }
 
@@ -161,7 +162,7 @@ pub trait Parser<I, T, E = ParseError> where
         P: Parser<I, U, E>
     {
         move |iter: &mut I| {
-            let t = self.scrying_parse(iter)?;
+            let t = self.scry_parse(iter)?;
             f(t).parse(iter)
         }
     }
@@ -170,7 +171,7 @@ pub trait Parser<I, T, E = ParseError> where
         P: Parser<I, U, E>
     {
         move |iter: &mut I| {
-            let t = self.backtracking_parse(iter)?;
+            let t = self.backtrack_parse(iter)?;
             f(t).parse(iter)
         }
     }
@@ -201,7 +202,7 @@ pub trait Parser<I, T, E = ParseError> where
 
     fn backtrack_or_else<F>(self, o: impl Fn(E) -> Result<T, F>) -> impl Parser<I, T, F> {
         move |iter: &mut I| {
-            self.backtracking_parse(iter).or_else(&o)
+            self.backtrack_parse(iter).or_else(&o)
         }
     }
 
@@ -219,7 +220,7 @@ pub trait Parser<I, T, E = ParseError> where
 
     fn backtrack_or_compose<F>(self, p: impl Parser<I, T, F>) -> impl Parser<I, T, F> {
         move |iter: &mut I| {
-            self.backtracking_parse(iter).or_else(|_| p.parse(iter))
+            self.backtrack_parse(iter).or_else(|_| p.parse(iter))
         }
     }
 
@@ -247,7 +248,7 @@ pub trait Parser<I, T, E = ParseError> where
         P: Parser<I, T, F>
     {
         move |iter: &mut I| {
-            self.backtracking_parse(iter).or_else(|e| {
+            self.backtrack_parse(iter).or_else(|e| {
                 o(e).parse(iter)
             })
         }
@@ -403,7 +404,7 @@ pub trait Parser<I, T, E = ParseError> where
 
     fn scry_then_continue_with<F>(self, p: impl Parser<I, (), F>) -> impl Parser<I, Result<T, E>, F> {
         move |iter: &mut I| {
-            let res = self.scrying_parse(iter);
+            let res = self.scry_parse(iter);
             p.parse(iter)?;
             Ok(res)
         }
@@ -411,7 +412,7 @@ pub trait Parser<I, T, E = ParseError> where
 
     fn backtrack_then_continue_with<F>(self, p: impl Parser<I, (), F>) -> impl Parser<I, Result<T, E>, F> {
         move |iter: &mut I| {
-            let res = self.backtracking_parse(iter);
+            let res = self.backtrack_parse(iter);
             p.parse(iter)?;
             Ok(res)
         }
@@ -437,7 +438,7 @@ pub trait Parser<I, T, E = ParseError> where
 
     fn backtrack_then_recover_with<F>(self, p: impl Parser<I, (), F>) -> impl Parser<I, Result<T, E>, F> {
         move |iter: &mut I| {
-            match self.backtracking_parse(iter) {
+            match self.backtrack_parse(iter) {
                 Ok(res) => Ok(Ok(res)),
                 Err(e) => p.parse(iter).map(|_| Err(e)),
             }
@@ -476,13 +477,14 @@ mod tests {
         }
     }
     
-    fn expect<'s, S: 's + Into<String>, I: Iterator<Item = char> + Clone>(t: S, e: &'s str) -> impl Parser<I, String, &'s str> {
-        let string = t.into();
+    fn expect<'s, T: 's + Into<String>, E: 's + Into<String>, I: Iterator<Item = char> + Clone>(t: T, e: E) -> impl Parser<I, String, String> {
+        let t_string = t.into();
+        let e_string = e.into();
         move |iter: &mut I| {
-            if iter.take(string.len()).collect::<String>() == string {
-                Ok(string.clone())
+            if iter.take(t_string.len()).collect::<String>() == t_string {
+                Ok(t_string.clone())
             } else {
-                Err(e)
+                Err(e_string.clone())
             }
         }
     }
@@ -501,7 +503,7 @@ mod tests {
     fn test_parse_ok() {
         let mut iter = "abc".chars();
         assert_eq!(
-            parse_ok::<_, _, &str>("abc")
+            parse_ok::<_, _,!>("abc".into())
             .parse(&mut iter),
             Ok("abc")
         )
@@ -511,9 +513,9 @@ mod tests {
     fn test_parse_err() {
         let mut iter = "abc".chars();
         assert_eq!(
-            parse_err::<_, String, _>("err")
+            parse_err::<_, !, _>(format!("err"))
             .parse(&mut iter),
-            Err("err")
+            Err("err".into())
         )
     }
 
@@ -549,7 +551,7 @@ mod tests {
             expect("def", "err")
             .attempt()
             .parse(&mut iter),
-            Err("err")
+            Err("err".into())
         );
         assert_eq!(
             expect("abc", "test_failure")
@@ -564,7 +566,7 @@ mod tests {
         assert_eq!(
             expect("def", "err")
             .attempt_parse(&mut iter),
-            Err("err")
+            Err("err".into())
         );
         assert_eq!(
             expect("abc", "test_failure")
@@ -591,11 +593,11 @@ mod tests {
     }
 
     #[test]
-    fn test_scrying_parse() {
+    fn test_scry_parse() {
         let mut iter = "abc".chars();
         assert_eq!(
             expect("abc", "test_failure")
-            .scrying_parse(&mut iter),
+            .scry_parse(&mut iter),
             Ok("abc".into())
         );
         assert_eq!(
@@ -619,7 +621,7 @@ mod tests {
             expect("def", "err")
             .backtrack()
             .parse(&mut iter),
-            Err("err")
+            Err("err".into())
         );
         assert_eq!(
             expect("abc", "test_failure")
@@ -629,17 +631,17 @@ mod tests {
     }
 
     #[test]
-    fn test_backtracking_parse() {
+    fn test_backtrack_parse() {
         let mut iter = "abc".chars();
         assert_eq!(
             expect("abc", "test_failure")
-            .backtracking_parse(&mut iter),
+            .backtrack_parse(&mut iter),
             Ok("abc".into())
         );
         assert_eq!(
             expect("def", "err")
-            .backtracking_parse(&mut iter),
-            Err("err")
+            .backtrack_parse(&mut iter),
+            Err("err".into())
         );
         assert_eq!(
             expect("abc", "test_failure")
@@ -712,8 +714,8 @@ mod tests {
     fn test_and_compose() {
         let mut iter = "abcdef".chars();
         assert_eq!(
-            expect("abc", "test_failure")
-            .and_compose(expect("def", "test_failure"))
+            expect("abc", "test_failure_0")
+            .and_compose(expect("def", "test_failure_1"))
             .parse(&mut iter),
             Ok("def".into())
         )
@@ -723,8 +725,8 @@ mod tests {
     fn test_scry_and_compose() {
         let mut iter = "abcdefghi".chars();
         assert_eq!(
-            expect("abc", "test_failure")
-            .scry_and_compose(expect("abcdef", "test_failure"))
+            expect("abc", "test_failure_0")
+            .scry_and_compose(expect("abcdef", "test_failure_0"))
             .parse(&mut iter),
             Ok("abcdef".into())
         );
@@ -738,16 +740,16 @@ mod tests {
     fn test_backtrack_and_compose() {
         let mut iter = "abcdefghi".chars();
         assert_eq!(
-            expect("abc", "test_failure")
-            .backtrack_and_compose(expect("abcdef", "test_failure"))
+            expect("abc", "test_failure_0")
+            .backtrack_and_compose(expect("abcdef", "test_failure_1"))
             .parse(&mut iter),
             Ok("abcdef".into())
         );
         assert_eq!(
             expect("abc", "err")
-            .backtrack_and_compose(expect("abcdef", "test_failure")) // should fail earlier
+            .backtrack_and_compose(expect("abcdef", "test_failure"))
             .parse(&mut iter),
-            Err("err")
+            Err("err".into())
         );
         assert_eq!(
             expect("ghi", "test_failure")
@@ -760,8 +762,8 @@ mod tests {
     fn test_and_then_compose() {
         let mut iter = "abcABC".chars();
         assert_eq!(
-            expect("abc", "test_failure")
-            .and_then_compose(|s| expect(s.to_uppercase(), "test_failure"))
+            expect("abc", "test_failure_0")
+            .and_then_compose(|s| expect(s.to_uppercase(), "test_failure_1"))
             .parse(&mut iter),
             Ok("ABC".into())
         )
@@ -771,8 +773,8 @@ mod tests {
     fn test_scry_and_then_compose() {
         let mut iter = "abcABCdef".chars();
         assert_eq!(
-            expect("abc", "test_failure")
-            .scry_and_then_compose(|s| expect(format!("abc{}", s.to_uppercase()), "test_failure"))
+            expect("abc", "test_failure_0")
+            .scry_and_then_compose(|s| expect(format!("abc{}", s.to_uppercase()), "test_failure_1"))
             .parse(&mut iter),
             Ok("abcABC".into())
         );
@@ -787,8 +789,8 @@ mod tests {
     fn test_backtrack_and_then_compose() {
         let mut iter = "abcABCdef".chars();
         assert_eq!(
-            expect("abc", "test_failure")
-            .backtrack_and_then_compose(|s| expect(format!("abc{}", s.to_uppercase()), "test_failure"))
+            expect("abc", "test_failure_0")
+            .backtrack_and_then_compose(|s| expect(format!("abc{}", s.to_uppercase()), "test_failure_1"))
             .parse(&mut iter),
             Ok("abcABC".into())
         );
@@ -796,7 +798,7 @@ mod tests {
             expect("abc", "err")
             .backtrack_and_then_compose(|s| expect(format!("abc{}", s.to_uppercase()), "test_failure"))
             .parse(&mut iter),
-            Err("err")
+            Err("err".into())
         );
         assert_eq!(
             expect("def", "test_failure")
@@ -807,68 +809,175 @@ mod tests {
 
     //* Error mapping
 
-    #[ignore]
     #[test]
     fn test_map_err() {
-        todo!()
+        let mut iter = "def".chars();
+        assert_eq!(
+            expect("abc", "err")
+            .map_err(|e| e.to_uppercase())
+            .parse(&mut iter),
+            Err("ERR".into())
+        )
     }
 
     // variants:
     // attempt_or...
     // backtrack_or...
 
-    #[ignore]
     #[test]
     fn test_or_else() {
-        todo!()
+        let mut iter = "def".chars();
+        assert_eq!(
+            expect("abc", "err")
+            .or_else(|e| Err(e.to_uppercase()))
+            .parse(&mut iter),
+            Err("ERR".into())
+        )
     }
 
-    #[ignore]
     #[test]
     fn test_attempt_or_else() {
-        todo!()
+        let mut iter = "def".chars();
+        assert_eq!(
+            expect("abc", "err")
+            .attempt_or_else(|e| Err(e.to_uppercase()))
+            .parse(&mut iter),
+            Err("ERR".into())
+        );
+        assert_eq!(
+            expect("def", "err")
+            .attempt_or_else(|e| Err(e.to_uppercase()))
+            .parse(&mut iter),
+            Ok("def".into())
+        )
     }
 
-    #[ignore]
     #[test]
     fn test_backtrack_or_else() {
-        todo!()
+        let mut iter = "def".chars();
+        assert_eq!(
+            expect("abc", "err")
+            .backtrack_or_else(|e| Err(e.to_uppercase()))
+            .parse(&mut iter),
+            Err("ERR".into())
+        );
+        assert_eq!(
+            expect("def", "err")
+            .backtrack_or_else(|e| Err(e.to_uppercase()))
+            .parse(&mut iter),
+            Ok("def".into())
+        );
+        assert_eq!(
+            expect("def", "test_failure")
+            .parse(&mut iter),
+            Ok("def".into())
+        )
     }
 
-    #[ignore]
     #[test]
     fn test_or_compose() {
-        todo!()
+        let mut iter = "defghi".chars();
+        assert_eq!(
+            expect("abc", "err")
+            .or_compose(expect("ghi", "test_failure"))
+            .parse(&mut iter),
+            Ok("ghi".into())
+        )
     }
 
-    #[ignore]
     #[test]
     fn test_attempt_or_compose() {
-        todo!()
+        let mut iter = "defghi".chars();
+        assert_eq!(
+            expect("abc", "err")
+            .attempt_or_compose(expect("def", "test_failure"))
+            .parse(&mut iter),
+            Ok("def".into())
+        );
+        assert_eq!(
+            expect("ghi", "test_failure_0")
+            .attempt_or_compose(expect("ijk", "test_failure_1"))
+            .parse(&mut iter),
+            Ok("ghi".into())
+        )
     }
 
-    #[ignore]
     #[test]
     fn test_backtrack_or_compose() {
-        todo!()
+        let mut iter = "defghijkl".chars();
+        assert_eq!(
+            expect("abc", "err")
+            .backtrack_or_compose(expect("def", "test_failure"))
+            .parse(&mut iter),
+            Ok("def".into())
+        );
+        assert_eq!(
+            expect("ghi", "test_failure_0")
+            .backtrack_or_compose(expect("ghijkl", "test_failure_1"))
+            .parse(&mut iter),
+            Ok("ghi".into())
+        );
+        assert_eq!(
+            expect("ghijkl", "test_failure")
+            .parse(&mut iter),
+            Ok("ghijkl".into())
+        )
     }
 
-    #[ignore]
     #[test]
     fn test_or_else_compose() {
-        todo!()
+        let mut iter = "defghijkl".chars();
+        assert_eq!(
+            expect("abc", "err")
+            .or_else_compose(|e| expect("def", e))
+            .parse(&mut iter),
+            Err("err".into())
+        );
+        assert_eq!(
+            expect("jkl", "test_failure")
+            .or_else_compose(|e| expect("mno", e))
+            .parse(&mut iter),
+            Ok("jkl".into())
+        )
     }
 
-    #[ignore]
     #[test]
     fn test_attempt_or_else_compose() {
-        todo!()
+        let mut iter = "ghijkl".chars();
+        assert_eq!(
+            expect("abc", "err")
+            .attempt_or_else_compose(|e| expect("def", e))
+            .parse(&mut iter),
+            Err("err".into())
+        );
+        assert_eq!(
+            expect("jkl", "test_failure")
+            .attempt_or_else_compose(|e| expect("mno", e))
+            .parse(&mut iter),
+            Ok("jkl".into())
+        )
     }
 
-    #[ignore]
     #[test]
     fn test_backtrack_or_else_compose() {
-        todo!()
+        let mut iter = "ghijkl".chars();
+        assert_eq!(
+            expect("abc", "err")
+            .backtrack_or_else_compose(|e| expect("def", e))
+            .parse(&mut iter),
+            Err("err".into())
+        );
+        assert_eq!(
+            expect("jkl", "test_failure")
+            .backtrack_or_else_compose(|e| expect("mno", e))
+            .parse(&mut iter),
+            Ok("jkl".into())
+        );
+        assert_eq!(
+            expect("jkl", "test_failure")
+            .parse(&mut iter),
+            Ok("jkl".into())
+        )
     }
 
     //* Vector Combinators
