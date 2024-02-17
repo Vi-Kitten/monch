@@ -488,6 +488,17 @@ mod tests {
             }
         }
     }
+
+    fn expect_end<'s, E: 's + Into<String>, I: Iterator<Item = char> + Clone>(e: E) -> impl Parser<I, (), String> {
+        let e_string = e.into();
+        move |iter: &mut I| {
+            if let None = iter.next() {
+                Ok(())
+            } else {
+                Err(e_string.clone())
+            }
+        }
+    }
         
     #[test]
     fn test_parse() {
@@ -496,26 +507,41 @@ mod tests {
             expect("abc", "test_failure")
             .parse(&mut iter),
             Ok("abc".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
     #[test]
     fn test_parse_ok() {
-        let mut iter = "abc".chars();
+        let mut iter = "".chars();
         assert_eq!(
             parse_ok::<_, _,!>("abc".into())
             .parse(&mut iter),
             Ok("abc")
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
     #[test]
     fn test_parse_err() {
-        let mut iter = "abc".chars();
+        let mut iter = "".chars();
         assert_eq!(
             parse_err::<_, !, _>(format!("err"))
             .parse(&mut iter),
             Err("err".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -525,6 +551,11 @@ mod tests {
         assert_eq!(
             expect("abc", "test_failure")
             .discard()
+            .parse(&mut iter),
+            Ok(())
+        );
+        assert_eq!(
+            expect_end("test_failure")
             .parse(&mut iter),
             Ok(())
         )
@@ -538,6 +569,11 @@ mod tests {
             .lense(WrappedIter::get_mut)
             .parse(&mut iter),
             Ok("abc".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -557,6 +593,11 @@ mod tests {
             expect("abc", "test_failure")
             .parse(&mut iter),
             Ok("abc".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -572,6 +613,11 @@ mod tests {
             expect("abc", "test_failure")
             .parse(&mut iter),
             Ok("abc".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -589,6 +635,11 @@ mod tests {
             expect("abc", "test_failure")
             .parse(&mut iter),
             Ok("abc".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -604,6 +655,11 @@ mod tests {
             expect("abc", "test_failure")
             .parse(&mut iter),
             Ok("abc".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -627,6 +683,11 @@ mod tests {
             expect("abc", "test_failure")
             .parse(&mut iter),
             Ok("abc".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -647,6 +708,11 @@ mod tests {
             expect("abc", "test_failure")
             .parse(&mut iter),
             Ok("abc".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -660,6 +726,11 @@ mod tests {
             .map(|s| s.to_uppercase())
             .parse(&mut iter),
             Ok(format!("ABC"))
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -671,6 +742,11 @@ mod tests {
             .and_then(|s| Ok(s.to_uppercase()))
             .parse(&mut iter),
             Ok("ABC".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -686,6 +762,11 @@ mod tests {
         assert_eq!(
             expect("abc", "test_failure").parse(&mut iter),
             Ok("abc".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -707,6 +788,11 @@ mod tests {
         assert_eq!(
             expect("abc", "test_failure").parse(&mut iter),
             Ok("abc".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -718,6 +804,11 @@ mod tests {
             .and_compose(expect("def", "test_failure_1"))
             .parse(&mut iter),
             Ok("def".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -733,6 +824,11 @@ mod tests {
         assert_eq!(
             expect("ghi", "test_failure").parse(&mut iter),
             Ok("ghi".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -755,6 +851,11 @@ mod tests {
             expect("ghi", "test_failure")
             .parse(&mut iter),
             Ok("ghi".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -766,6 +867,11 @@ mod tests {
             .and_then_compose(|s| expect(s.to_uppercase(), "test_failure_1"))
             .parse(&mut iter),
             Ok("ABC".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -782,6 +888,11 @@ mod tests {
             expect("def", "test_failure")
             .parse(&mut iter),
             Ok("def".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -804,6 +915,11 @@ mod tests {
             expect("def", "test_failure")
             .parse(&mut iter),
             Ok("def".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -817,6 +933,11 @@ mod tests {
             .map_err(|e| e.to_uppercase())
             .parse(&mut iter),
             Err("ERR".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -832,6 +953,11 @@ mod tests {
             .or_else(|e| Err(e.to_uppercase()))
             .parse(&mut iter),
             Err("ERR".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -849,6 +975,11 @@ mod tests {
             .attempt_or_else(|e| Err(e.to_uppercase()))
             .parse(&mut iter),
             Ok("def".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -871,6 +1002,11 @@ mod tests {
             expect("def", "test_failure")
             .parse(&mut iter),
             Ok("def".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -882,6 +1018,11 @@ mod tests {
             .or_compose(expect("ghi", "test_failure"))
             .parse(&mut iter),
             Ok("ghi".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -899,6 +1040,11 @@ mod tests {
             .attempt_or_compose(expect("ijk", "test_failure_1"))
             .parse(&mut iter),
             Ok("ghi".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -921,6 +1067,11 @@ mod tests {
             expect("ghijkl", "test_failure")
             .parse(&mut iter),
             Ok("ghijkl".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -938,6 +1089,11 @@ mod tests {
             .or_else_compose(|e| expect("mno", e))
             .parse(&mut iter),
             Ok("jkl".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -955,6 +1111,11 @@ mod tests {
             .attempt_or_else_compose(|e| expect("mno", e))
             .parse(&mut iter),
             Ok("jkl".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
@@ -977,6 +1138,11 @@ mod tests {
             expect("jkl", "test_failure")
             .parse(&mut iter),
             Ok("jkl".into())
+        );
+        assert_eq!(
+            expect_end("test_failure")
+            .parse(&mut iter),
+            Ok(())
         )
     }
 
