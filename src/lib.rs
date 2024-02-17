@@ -279,29 +279,23 @@ pub trait Parser<I, T, E = ParseError> where
         }
     }
 
-    fn some(self) -> impl Parser<I, Vec<T>, E> where
-        Self: Clone
-    {
-        let manyself = self.clone().many();
+    fn some(self) -> impl Parser<I, Vec<T>, E> {
         move |iter: &mut I| {
-            let val = self.parse(iter)?;
-            manyself.parse(iter).map(|mut values| {
-                values.insert(0, val);
-                values
-            })
+            let mut values = vec![self.parse(iter)?];
+            while let Ok(val) = self.parse(iter) {
+                values.push(val)
+            }
+            Ok(values)
         }
     }
 
-    fn attempt_some(self) -> impl Parser<I, Vec<T>, E> where
-        Self: Clone
-    {
-        let manyself = self.clone().attempt_many();
+    fn attempt_some(self) -> impl Parser<I, Vec<T>, E> {
         move |iter: &mut I| {
-            let val = self.attempt_parse(iter)?;
-            manyself.parse(iter).map(|mut values| {
-                values.insert(0, val);
-                values
-            })
+            let mut values = vec![self.attempt_parse(iter)?];
+            while let Ok(val) = self.attempt_parse(iter) {
+                values.push(val)
+            }
+            Ok(values)
         }
     }
 

@@ -1,6 +1,5 @@
 use super::*;
 
-#[derive(Clone)]
 struct WrappedIter<I: Iterator>(I);
 
 impl<I: Iterator> WrappedIter<I> {
@@ -16,6 +15,13 @@ impl<I: Iterator> Iterator for WrappedIter<I> {
     fn next(&mut self) -> Option<Self::Item> {
         let WrappedIter(iter) = self;
         iter.next()
+    }
+}
+
+impl<I: Iterator + Clone> Clone for WrappedIter<I> {
+    fn clone(&self) -> Self {
+        let WrappedIter(iter) = self;
+        WrappedIter(iter.clone())
     }
 }
 
@@ -690,28 +696,100 @@ fn test_backtrack_or_else_compose() {
 
 //* Vector Combinators
 
-#[ignore]
 #[test]
 fn test_many() {
-    todo!()
+    let mut iter = "abcabcdefghi".chars();
+    assert_eq!(
+        expect("abc", "test_failure")
+        .many::<!>()
+        .parse(&mut iter),
+        Ok(vec!["abc".into(), "abc".into()])
+    );
+    assert_eq!(
+        expect("ghi", "test_failure")
+        .parse(&mut iter),
+        Ok("ghi".into())
+    );
+    assert_eq!(
+        expect_end("test_failure")
+        .parse(&mut iter),
+        Ok(())
+    )
 }
 
-#[ignore]
 #[test]
 fn test_attempt_many() {
-    todo!()
+    let mut iter = "abcabcdef".chars();
+    assert_eq!(
+        expect("abc", "test_failure")
+        .attempt_many::<!>()
+        .parse(&mut iter),
+        Ok(vec!["abc".into(), "abc".into()])
+    );
+    assert_eq!(
+        expect("def", "test_failure")
+        .parse(&mut iter),
+        Ok("def".into())
+    );
+    assert_eq!(
+        expect_end("test_failure")
+        .parse(&mut iter),
+        Ok(())
+    )
 }
 
-#[ignore]
 #[test]
 fn test_some() {
-    todo!()
+    let mut iter = "defghighijklmno".chars();
+    assert_eq!(
+        expect("abc", "err")
+        .some()
+        .parse(&mut iter),
+        Err("err".into())
+    );
+    assert_eq!(
+        expect("ghi", "test_failure")
+        .some()
+        .parse(&mut iter),
+        Ok(vec!["ghi".into(), "ghi".into()])
+    );
+    assert_eq!(
+        expect("mno", "test_failure")
+        .parse(&mut iter),
+        Ok("mno".into())
+    );
+    assert_eq!(
+        expect_end("test_failure")
+        .parse(&mut iter),
+        Ok(())
+    )
 }
 
-#[ignore]
 #[test]
 fn test_attempt_some() {
-    todo!()
+    let mut iter = "defdefghi".chars();
+    assert_eq!(
+        expect("abc", "err")
+        .attempt_some()
+        .parse(&mut iter),
+        Err("err".into())
+    );
+    assert_eq!(
+        expect("def", "test_failure")
+        .attempt_some()
+        .parse(&mut iter),
+        Ok(vec!["def".into(), "def".into()])
+    );
+    assert_eq!(
+        expect("ghi", "test_failure")
+        .parse(&mut iter),
+        Ok("ghi".into())
+    );
+    assert_eq!(
+        expect_end("test_failure")
+        .parse(&mut iter),
+        Ok(())
+    )
 }
 
 #[ignore]
