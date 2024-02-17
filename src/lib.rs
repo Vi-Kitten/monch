@@ -807,6 +807,7 @@ mod tests {
 
     //* Error mapping
 
+    #[ignore]
     #[test]
     fn test_map_err() {
         todo!()
@@ -816,46 +817,55 @@ mod tests {
     // attempt_or...
     // backtrack_or...
 
+    #[ignore]
     #[test]
     fn test_or_else() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_attempt_or_else() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_backtrack_or_else() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_or_compose() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_attempt_or_compose() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_backtrack_or_compose() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_or_else_compose() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_attempt_or_else_compose() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_backtrack_or_else_compose() {
         todo!()
@@ -863,41 +873,49 @@ mod tests {
 
     //* Vector Combinators
 
+    #[ignore]
     #[test]
     fn test_many() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_attempt_many() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_some() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_attempt_some() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_least_until() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_attempt_least_until() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_most_until() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_attempt_most_until() {
         todo!()
@@ -905,36 +923,43 @@ mod tests {
 
     //* Error recovery
 
+    #[ignore]
     #[test]
     fn test_continue_with() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_scry_then_continue_with() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_backtrack_then_continue_with() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_recover_with() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_attempt_then_recover_with() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_backtrack_then_recover_with() {
         todo!()
     }
 
+    #[ignore]
     #[test]
     fn test_absorb_err() {
         todo!()
