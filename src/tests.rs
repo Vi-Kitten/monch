@@ -792,28 +792,95 @@ fn test_attempt_some() {
     )
 }
 
-#[ignore]
 #[test]
 fn test_least_until() {
-    todo!()
+    let mut iter = ".def.def.def:ghi".chars();
+    assert_eq!(
+        expect("abc", "test_failure")
+        .least_until(expect(":", "err"))
+        .parse(&mut iter),
+        Err("err".into())
+    );
+    assert_eq!(
+        expect("def", "test_failure_0")
+        .least_until(expect(":", "test_failure_1"))
+        .parse(&mut iter),
+        Ok((vec!["def".into(), "def".into()], ":".into()))
+    );
+    assert_eq!(
+        expect("ghi", "test_failure")
+        .parse(&mut iter),
+        Ok("ghi".into())
+    );
+    assert_eq!(
+        expect_end("test_failure")
+        .parse(&mut iter),
+        Ok(())
+    )
 }
 
-#[ignore]
 #[test]
 fn test_attempt_least_until() {
-    todo!()
+    let mut iter = ".def.ghi.ghi:jkl".chars();
+    assert_eq!(
+        expect("abc", "test_failure")
+        .attempt_least_until(expect(":", "err"))
+        .parse(&mut iter),
+        Err("err".into())
+    );
+    assert_eq!(
+        expect("def", "test_failure")
+        .parse(&mut iter),
+        Ok("def".into())
+    );
+    assert_eq!(
+        expect("ghi", "test_failure_0")
+        .attempt_least_until(expect(":", "test_failure_1"))
+        .parse(&mut iter),
+        Ok((vec!["ghi".into(), "ghi".into()], ":".into()))
+    );
+    assert_eq!(
+        expect("jkl", "test_failure")
+        .parse(&mut iter),
+        Ok("jkl".into())
+    );
+    assert_eq!(
+        expect_end("test_failure")
+        .parse(&mut iter),
+        Ok(())
+    )
 }
 
-#[ignore]
 #[test]
 fn test_most_until() {
-    todo!()
+    let mut iter = "abcabcdefghi".chars();
+    assert_eq!(
+        expect("abc", "test_failure_0")
+        .most_until(expect("ghi", "test_failure_1"))
+        .parse(&mut iter),
+        Ok((vec!["abc".into(), "abc".into()], "ghi".into()))
+    );
+    assert_eq!(
+        expect_end("test_failure")
+        .parse(&mut iter),
+        Ok(())
+    )
 }
 
-#[ignore]
 #[test]
 fn test_attempt_most_until() {
-    todo!()
+    let mut iter = "abcabcdef".chars();
+    assert_eq!(
+        expect("abc", "test_failure_0")
+        .attempt_most_until(expect("def", "test_failure_1"))
+        .parse(&mut iter),
+        Ok((vec!["abc".into(), "abc".into()], "def".into()))
+    );
+    assert_eq!(
+        expect_end("test_failure")
+        .parse(&mut iter),
+        Ok(())
+    )
 }
 
 //* Error recovery

@@ -334,7 +334,7 @@ pub trait Parser<I, T, E = ParseError> where
             let e = loop {
                 let mut child = stack.last().unwrap().clone();
                 let res = self.parse(&mut child);
-                stack.push(child);
+                stack.push(child); // also on failure
                 match res {
                     Ok(val) => values.push(val),
                     Err(e) => break e,
@@ -364,10 +364,11 @@ pub trait Parser<I, T, E = ParseError> where
             let mut values = vec![];
             let e = loop {
                 let mut child = stack.last().unwrap().clone();
-                let res = self.attempt_parse(&mut child);
-                stack.push(child);
-                match res {
-                    Ok(val) => values.push(val),
+                match self.parse(&mut child) {
+                    Ok(val) => {
+                        stack.push(child); // only on success
+                        values.push(val)
+                    },
                     Err(e) => break e,
                 }
             };
