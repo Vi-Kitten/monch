@@ -3,6 +3,7 @@
 
 #[cfg(test)]
 mod tests;
+pub mod indirection;
 
 pub enum ParseError<Msg = String> {
     UnexpectedEnd,
@@ -11,7 +12,7 @@ pub enum ParseError<Msg = String> {
     Bundle(Vec<ParseError>)
 }
 
-impl<F, I, T, E> Parser<I, T, E> for F where
+impl<F, I, T, E> UnsizedParser<I, T, E> for F where
     F: for<'i> Fn(&'i mut I) -> Result<T, E>,
     I: Iterator + Clone
 {
@@ -38,12 +39,39 @@ pub fn parse_err<I, T, E>(e: E) -> impl Parser<I, T, E> where
     }
 }
 
-pub trait Parser<I, T, E = ParseError> where
-    I: Iterator + Clone,
-    Self: Sized
+pub trait UnsizedParser<I, T, E = ParseError> where
+    I: Iterator + Clone
 {
     fn parse(&self, iter: &mut I) -> Result<T, E>;
 
+    fn attempt_parse(&self, iter: &mut I) -> Result<T, E> {
+        let backup = iter.clone();
+        self.parse(iter).map_err(|e| {
+            *iter = backup;
+            e                
+        })
+    }
+
+    fn scry_parse(&self, iter: &mut I) -> Result<T, E> {
+        let backup = iter.clone();
+        let val = self.parse(iter)?;
+        *iter = backup;
+        Ok(val)
+    }
+
+    fn backtrack_parse(&self, iter: &mut I) -> Result<T, E> {
+        self.parse(&mut iter.clone())
+    }
+}
+
+impl<P, I, T, E> Parser<I, T, E> for P where
+    I: Iterator + Clone,
+    P: Sized + UnsizedParser<I, T, E> {}
+
+pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
+    I: Iterator + Clone,
+    Self: Sized
+{
     fn discard(self) -> impl Parser<I, (), E> {
         move |iter: &mut I| {
             self.parse(iter).map(|_| ())
@@ -64,48 +92,22 @@ pub trait Parser<I, T, E = ParseError> where
     // backtrack on failure
     fn attempt(self) -> impl Parser<I, T, E> {
         move |iter: &mut I| {
-            let backup = iter.clone();
-            self.parse(iter).map_err(|e| {
-                *iter = backup;
-                e                
-            })
+            self.attempt_parse(iter)
         }
-    }
-
-    fn attempt_parse(&self, iter: &mut I) -> Result<T, E> {
-        let backup = iter.clone();
-        self.parse(iter).map_err(|e| {
-            *iter = backup;
-            e                
-        })
     }
 
     // backtrack on success
     fn scry(self) -> impl Parser<I, T, E> {
         move |iter: &mut I| {
-            let backup = iter.clone();
-            let val = self.parse(iter)?;
-            *iter = backup;
-            Ok(val)
+            self.scry_parse(iter)
         }
-    }
-
-    fn scry_parse(&self, iter: &mut I) -> Result<T, E> {
-        let backup = iter.clone();
-        let val = self.parse(iter)?;
-        *iter = backup;
-        Ok(val)
     }
 
     // always backtrack
     fn backtrack(self) -> impl Parser<I, T, E> {
         move |iter: &mut I| {
-            self.parse(&mut iter.clone())
+            self.backtrack_parse(iter)
         }
-    }
-
-    fn backtrack_parse(&self, iter: &mut I) -> Result<T, E> {
-        self.parse(&mut iter.clone())
     }
 
     //* Value mapping
@@ -303,10 +305,12 @@ pub trait Parser<I, T, E = ParseError> where
         move |iter: &mut I| {
             let mut values = vec![];
             let u = loop {
-                match end.parse(iter).or_else(|e| Err(self.parse(iter).map_err(|_| e))) {
+                match end.parse(iter) {
                     Ok(u) => break Ok(u),
-                    Err(Ok(val)) => values.push(val),
-                    Err(Err(e)) => break Err(e),
+                    Err(e) => match self.parse(iter) {
+                        Ok(val) => values.push(val),
+                        Err(_) => break Err(e)
+                    }
                 }
             }?;
             Ok((values, u))
@@ -317,10 +321,12 @@ pub trait Parser<I, T, E = ParseError> where
         move |iter: &mut I| {
             let mut values = vec![];
             let u = loop {
-                match end.parse(iter).or_else(|e| Err(self.attempt_parse(iter).map_err(|_| e))) {
+                match end.parse(iter) {
                     Ok(u) => break Ok(u),
-                    Err(Ok(val)) => values.push(val),
-                    Err(Err(e)) => break Err(e),
+                    Err(e) => match self.attempt_parse(iter) {
+                        Ok(val) => values.push(val),
+                        Err(_) => break Err(e)
+                    }
                 }
             }?;
             Ok((values, u))
@@ -333,11 +339,18 @@ pub trait Parser<I, T, E = ParseError> where
             let mut values = vec![];
             let e = loop {
                 let mut child = stack.last().unwrap().clone();
-                let res = self.parse(&mut child);
-                stack.push(child); // also on failure
-                match res {
-                    Ok(val) => values.push(val),
-                    Err(e) => break e,
+                match self.parse(&mut child) {
+                    Ok(val) => {
+                        stack.push(child);
+                        values.push(val)
+                    },
+                    Err(e) => match end.parse(&mut child) {
+                        Ok(u) => {
+                            *iter = child;
+                            return Ok((values, u))
+                        },
+                        Err(_) => break e,
+                    },
                 }
             };
             loop {
@@ -366,7 +379,7 @@ pub trait Parser<I, T, E = ParseError> where
                 let mut child = stack.last().unwrap().clone();
                 match self.parse(&mut child) {
                     Ok(val) => {
-                        stack.push(child); // only on success
+                        stack.push(child);
                         values.push(val)
                     },
                     Err(e) => break e,

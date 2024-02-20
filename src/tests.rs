@@ -853,12 +853,18 @@ fn test_attempt_least_until() {
 
 #[test]
 fn test_most_until() {
-    let mut iter = "abcabcdefghi".chars();
+    let mut iter = "abcabcdefghijkljklmno".chars();
     assert_eq!(
         expect("abc", "test_failure_0")
         .most_until(expect("ghi", "test_failure_1"))
         .parse(&mut iter),
         Ok((vec!["abc".into(), "abc".into()], "ghi".into()))
+    );
+    assert_eq!(
+        expect("jkl", "test_failure_0")
+        .most_until(expect("mno", "test_failure_1"))
+        .parse(&mut iter),
+        Ok((vec!["jkl".into(), "jkl".into()], "mno".into()))
     );
     assert_eq!(
         expect_end("test_failure")
@@ -1039,4 +1045,85 @@ fn test_absorb_err() {
         .parse(&mut iter),
         Ok(())
     )
+}
+
+//* Functionality Testing
+
+#[derive(Debug, PartialEq, Eq)]
+enum TestRecExpr {
+    Abc,
+    Exprs(Vec<TestRecExpr>)
+}
+
+#[test]
+fn test_recursive_capability() {
+    fn expr_parser() -> impl Parser<std::str::Chars<'static>, TestRecExpr, String> {
+        |iter: &mut _| { // required to create recursively defined lambda type
+            expect("abc", "expected 'abc'").map(|_| TestRecExpr::Abc)
+            .attempt_or_compose(
+                expect("(", "expected '('")
+                .and_compose(
+                    Box::new(indirection::LazyParser::new(expr_parser))
+                    .attempt_most_until(
+                        expect(")", "expected ')'")
+                    )
+                    .map(|(exprs, _)| TestRecExpr::Exprs(exprs))
+                )
+            )
+            .parse(iter)
+        }
+    }
+    use TestRecExpr::*;
+    let mut iter = "abc".chars();
+    assert_eq!(
+        expr_parser()
+        .parse(&mut iter),
+        Ok(
+            Abc
+        )
+    );
+    assert_eq!(
+        expect_end("test_failure")
+        .parse(&mut iter),
+        Ok(())
+    );
+    let mut iter = "(abcabcabc)".chars();
+    assert_eq!(
+        expr_parser()
+        .parse(&mut iter),
+        Ok(
+            Exprs(vec![
+                Abc,
+                Abc,
+                Abc
+            ])
+        )
+    );
+    assert_eq!(
+        expect_end("test_failure")
+        .parse(&mut iter),
+        Ok(())
+    );
+    let mut iter = "(abcabc(abcabc)abc)".chars();
+    assert_eq!(
+        expr_parser()
+        .parse(&mut iter),
+        Ok(
+            Exprs(vec![
+                Abc,
+                Abc,
+                Exprs(vec![
+                    Abc,
+                    Abc
+                ]),
+                Abc
+            ])
+        )
+    );
+    assert_eq!(
+        expect_end("test_failure")
+        .parse(&mut iter),
+        Ok(())
+    )
+    
 }
