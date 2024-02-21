@@ -327,6 +327,49 @@ impl<P, I, T, E, Q, U, F> UnsizedParser<I, U, E> for AndThenCompose<P, I, T, E, 
     }
 }
 
+#[derive(Clone)]
+pub struct PreserveAndCompose<P, I, T, E, Q, U> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, U, E>
+{
+    parser: P, 
+    other: Q,
+    _i: std::marker::PhantomData<I>,
+    _t: std::marker::PhantomData<T>,
+    _e: std::marker::PhantomData<E>,
+    _u: std::marker::PhantomData<U>,
+}
+
+impl<P, I, T, E, Q, U> PreserveAndCompose<P, I, T, E, Q, U> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, U, E>
+{
+    pub fn new(parser: P, other: Q) -> PreserveAndCompose<P, I, T, E, Q, U> {
+        PreserveAndCompose{
+            parser: parser,
+            other: other,
+            _i: std::marker::PhantomData,
+            _t: std::marker::PhantomData,
+            _e: std::marker::PhantomData,
+            _u: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<P, I, T, E, Q, U> UnsizedParser<I, T, E> for PreserveAndCompose<P, I, T, E, Q, U> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, U, E>
+{
+    fn parse(&self, iter: &mut I) -> Result<T, E> {
+        self.parser.parse(iter).and_then(|t|
+            self.other.parse(iter).map(|_| t)
+        )
+    }
+}
+
 // Error mapping
 
 #[derive(Clone)]

@@ -127,6 +127,12 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
         AndCompose::new(self, p)
     }
 
+    fn preserve_and_compose<U, P>(self, p: P) -> PreserveAndCompose<Self, I, T, E, P, U> where
+        P: Parser<I, U, E>
+    {
+        PreserveAndCompose::new(self, p)
+    }
+
     fn and_then_compose<U, P, F>(self, f: F) -> AndThenCompose<Self, I, T, E, P, U, F> where
         P: Parser<I, U, E>,
         F: Fn(T) -> P
@@ -177,8 +183,8 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
         Least::new(self, end)
     }
 
-    // does not need an attempt
-    fn attempt_most_until<U, F>(self, end: impl Parser<I, U, F>) -> impl Parser<I, (Vec<T>, U), E> {
+    // already attempts due to creation of stack structure
+    fn most_until<U, F>(self, end: impl Parser<I, U, F>) -> impl Parser<I, (Vec<T>, U), E> {
         Most::new(self, end)
     }
 

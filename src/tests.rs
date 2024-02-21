@@ -324,6 +324,22 @@ fn test_and_compose() {
 }
 
 #[test]
+fn test_preserve_and_compose() {
+    let mut iter = "abcdef".chars();
+    assert_eq!(
+        expect("abc", "test_failure_0")
+        .preserve_and_compose(expect("def", "test_failure_1"))
+        .parse(&mut iter),
+        Ok("abc".into())
+    );
+    assert_eq!(
+        expect_end("test_failure")
+        .parse(&mut iter),
+        Ok(())
+    )
+}
+
+#[test]
 fn test_and_then_compose() {
     let mut iter = "abcABC".chars();
     assert_eq!(
@@ -358,10 +374,6 @@ fn test_map_err() {
         Ok(())
     )
 }
-
-// variants:
-// attempt_or...
-// backtrack_or...
 
 #[test]
 fn test_or_else() {
@@ -496,11 +508,11 @@ fn test_least_until() {
 }
 
 #[test]
-fn test_attempt_most_until() {
+fn test_most_until() {
     let mut iter = "abcabcdef".chars();
     assert_eq!(
         expect("abc", "test_failure_0")
-        .attempt_most_until(expect("def", "test_failure_1"))
+        .most_until(expect("def", "test_failure_1"))
         .parse(&mut iter),
         Ok((vec!["abc".into(), "abc".into()], "def".into()))
     );
@@ -600,8 +612,9 @@ fn test_recursive_capability() {
                 expect("(", "expected '('")
                 .and_compose(
                     Box::new(indirection::LazyParser::new(expr_parser))
-                    .attempt_most_until(
+                    .most_until(
                         expect(")", "expected ')'")
+                        .attempt()
                     )
                     .map(|(exprs, _)| Exprs(exprs))
                 )
