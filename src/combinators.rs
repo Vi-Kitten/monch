@@ -495,3 +495,203 @@ impl<P, I, T, E, Q, F, O> UnsizedParser<I, T, F> for OrElseCompose<P, I, T, E, Q
         )
     }
 }
+
+//* Vector Combinators
+
+#[derive(Clone)]
+pub struct Many<P, I, T, E> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>
+{
+    parser: P, 
+    _i: std::marker::PhantomData<I>,
+    _t: std::marker::PhantomData<T>,
+    _e: std::marker::PhantomData<E>,
+}
+
+impl<P, I, T, E> Many<P, I, T, E> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>
+{
+    pub fn new(parser: P) -> Many<P, I, T, E> {
+        Many {
+            parser: parser, 
+            _i: std::marker::PhantomData,
+            _t: std::marker::PhantomData,
+            _e: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<P, I, T, E, F> UnsizedParser<I, Vec<T>, F> for Many<P, I, T, E> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>
+{
+    fn parse(&self, iter: &mut I) -> Result<Vec<T>, F> {
+        let mut values = vec![];
+        while let Ok(val) = self.parser.parse(iter) {
+            values.push(val)
+        }
+        Ok(values)
+    }
+}
+
+#[derive(Clone)]
+pub struct Some<P, I, T, E> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>
+{
+    parser: P, 
+    _i: std::marker::PhantomData<I>,
+    _t: std::marker::PhantomData<T>,
+    _e: std::marker::PhantomData<E>,
+}
+
+impl<P, I, T, E> Some<P, I, T, E> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>
+{
+    pub fn new(parser: P) -> Some<P, I, T, E> {
+        Some {
+            parser: parser, 
+            _i: std::marker::PhantomData,
+            _t: std::marker::PhantomData,
+            _e: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<P, I, T, E> UnsizedParser<I, Vec<T>, E> for Some<P, I, T, E> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>
+{
+    fn parse(&self, iter: &mut I) -> Result<Vec<T>, E> {
+        let mut values = vec![self.parser.parse(iter)?];
+        while let Ok(val) = self.parser.parse(iter) {
+            values.push(val)
+        }
+        Ok(values)
+    }
+}
+
+#[derive(Clone)]
+pub struct Least<P, I, T, E, Q, U, F> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, U, F>
+{
+    parser: P,
+    until: Q,
+    _i: std::marker::PhantomData<I>,
+    _t: std::marker::PhantomData<T>,
+    _e: std::marker::PhantomData<E>,
+    _u: std::marker::PhantomData<U>,
+    _f: std::marker::PhantomData<F>,
+}
+
+impl<P, I, T, E, Q, U, F> Least<P, I, T, E, Q, U, F> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, U, F>
+{
+    pub fn new(parser: P, until: Q) -> Least<P, I, T, E, Q, U, F> {
+        Least {
+            parser: parser,
+            until: until,
+            _i: std::marker::PhantomData,
+            _t: std::marker::PhantomData,
+            _e: std::marker::PhantomData,
+            _u: std::marker::PhantomData,
+            _f: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<P, I, T, E, Q, U, F> UnsizedParser<I, (Vec<T>, U), F> for Least<P, I, T, E, Q, U, F> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, U, F>
+{
+    fn parse(&self, iter: &mut I) -> Result<(Vec<T>, U), F> {
+        let mut values = vec![];
+        let u = loop {
+            match self.until.parse(iter) {
+                Ok(u) => break Ok(u),
+                Err(e) => match self.parser.parse(iter) {
+                    Ok(val) => values.push(val),
+                    Err(_) => break Err(e)
+                }
+            }
+        }?;
+        Ok((values, u))
+    }
+}
+
+#[derive(Clone)]
+pub struct Most<P, I, T, E, Q, U, F> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, U, F>
+{
+    parser: P,
+    until: Q,
+    _i: std::marker::PhantomData<I>,
+    _t: std::marker::PhantomData<T>,
+    _e: std::marker::PhantomData<E>,
+    _u: std::marker::PhantomData<U>,
+    _f: std::marker::PhantomData<F>,
+}
+
+impl<P, I, T, E, Q, U, F> Most<P, I, T, E, Q, U, F> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, U, F>
+{
+    pub fn new(parser: P, until: Q) -> Most<P, I, T, E, Q, U, F> {
+        Most {
+            parser: parser,
+            until: until,
+            _i: std::marker::PhantomData,
+            _t: std::marker::PhantomData,
+            _e: std::marker::PhantomData,
+            _u: std::marker::PhantomData,
+            _f: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<P, I, T, E, Q, U, F> UnsizedParser<I, (Vec<T>, U), E> for Most<P, I, T, E, Q, U, F> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, U, F>
+{
+    fn parse(&self, iter: &mut I) -> Result<(Vec<T>, U), E> {
+        let mut stack = vec![iter.clone()];
+        let mut values = vec![];
+        let e = loop {
+            let mut child = stack.last().unwrap().clone();
+            match self.parser.parse(&mut child) {
+                Ok(val) => {
+                    stack.push(child);
+                    values.push(val)
+                },
+                Err(e) => break e,
+            }
+        };
+        loop {
+            let mut parent = stack.pop().unwrap();
+            match self.until.parse(&mut parent) {
+                Ok(u) => {
+                    *iter = parent;
+                    break Ok((values, u))
+                },
+                Err(_) => {
+                    if let None = values.pop() {
+                        *iter = parent;
+                        break Err(e)
+                    }
+                },
+            }
+        }
+    }
+}

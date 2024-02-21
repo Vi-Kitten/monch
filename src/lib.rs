@@ -243,146 +243,36 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
 
     //* Vector Combinators
 
-    fn many<F>(self) -> impl Parser<I, Vec<T>, F> {
-        move |iter: &mut I| {
-            let mut values = vec![];
-            while let Ok(val) = self.parse(iter) {
-                values.push(val)
-            }
-            Ok(values)
-        }
+    fn many(self) -> Many<Self, I, T, E> {
+        Many::new(self)
     }
 
-    fn attempt_many<F>(self) -> impl Parser<I, Vec<T>, F> {
-        move |iter: &mut I| {
-            let mut values = vec![];
-            while let Ok(val) = self.attempt_parse(iter) {
-                values.push(val)
-            }
-            Ok(values)
-        }
+    fn attempt_many(self) -> Many<Attempt<Self, I, T, E>, I, T, E> {
+        self.attempt().many()
     }
 
-    fn some(self) -> impl Parser<I, Vec<T>, E> {
-        move |iter: &mut I| {
-            let mut values = vec![self.parse(iter)?];
-            while let Ok(val) = self.parse(iter) {
-                values.push(val)
-            }
-            Ok(values)
-        }
+    fn some(self) -> Some<Self, I, T, E> {
+        Some::new(self)
     }
 
-    fn attempt_some(self) -> impl Parser<I, Vec<T>, E> {
-        move |iter: &mut I| {
-            let mut values = vec![self.attempt_parse(iter)?];
-            while let Ok(val) = self.attempt_parse(iter) {
-                values.push(val)
-            }
-            Ok(values)
-        }
+    fn attempt_some(self) -> Some<Attempt<Self, I, T, E>, I, T, E> {
+        self.attempt().some()
     }
 
-    fn least_until<U, F>(self, end: impl Parser<I, U, F>) -> impl Parser<I, (Vec<T>, U), F> {
-        move |iter: &mut I| {
-            let mut values = vec![];
-            let u = loop {
-                match end.parse(iter) {
-                    Ok(u) => break Ok(u),
-                    Err(e) => match self.parse(iter) {
-                        Ok(val) => values.push(val),
-                        Err(_) => break Err(e)
-                    }
-                }
-            }?;
-            Ok((values, u))
-        }
+    fn least_until<U, F, P>(self, end: P) -> Least<Self, I, T, E, P, U, F> where
+        P: Parser<I, U, F>
+    {
+        Least::new(self, end)
     }
 
-    fn attempt_least_until<U, F>(self, end: impl Parser<I, U, F>) -> impl Parser<I, (Vec<T>, U), F> {
-        move |iter: &mut I| {
-            let mut values = vec![];
-            let u = loop {
-                match end.parse(iter) {
-                    Ok(u) => break Ok(u),
-                    Err(e) => match self.attempt_parse(iter) {
-                        Ok(val) => values.push(val),
-                        Err(_) => break Err(e)
-                    }
-                }
-            }?;
-            Ok((values, u))
-        }
-    }
-
-    fn most_until<U, F>(self, end: impl Parser<I, U, F>) -> impl Parser<I, (Vec<T>, U), E> {
-        move |iter: &mut I| {
-            let mut stack = vec![iter.clone()];
-            let mut values = vec![];
-            let e = loop {
-                let mut child = stack.last().unwrap().clone();
-                match self.parse(&mut child) {
-                    Ok(val) => {
-                        stack.push(child);
-                        values.push(val)
-                    },
-                    Err(e) => match end.parse(&mut child) {
-                        Ok(u) => {
-                            *iter = child;
-                            return Ok((values, u))
-                        },
-                        Err(_) => break e,
-                    },
-                }
-            };
-            loop {
-                let mut parent = stack.pop().unwrap();
-                match end.parse(&mut parent) {
-                    Ok(u) => {
-                        *iter = parent;
-                        break Ok((values, u))
-                    },
-                    Err(_) => {
-                        if let None = values.pop() {
-                            *iter = parent;
-                            break Err(e)
-                        }
-                    },
-                }
-            }
-        }
+    fn attempt_least_until<U, F, P>(self, end: P) -> Least<Attempt<Self, I, T, E>, I, T, E, P, U, F> where
+        P: Parser<I, U, F>
+    {
+        self.attempt().least_until(end)
     }
 
     fn attempt_most_until<U, F>(self, end: impl Parser<I, U, F>) -> impl Parser<I, (Vec<T>, U), E> {
-        move |iter: &mut I| {
-            let mut stack = vec![iter.clone()];
-            let mut values = vec![];
-            let e = loop {
-                let mut child = stack.last().unwrap().clone();
-                match self.parse(&mut child) {
-                    Ok(val) => {
-                        stack.push(child);
-                        values.push(val)
-                    },
-                    Err(e) => break e,
-                }
-            };
-            loop {
-                let mut parent = stack.pop().unwrap();
-                match end.parse(&mut parent) {
-                    Ok(u) => {
-                        *iter = parent;
-                        break Ok((values, u))
-                    },
-                    Err(_) => {
-                        if let None = values.pop() {
-                            *iter = parent;
-                            break Err(e)
-                        }
-                    },
-                }
-            }
-        }
+        Most::new(self, end)
     }
 
     //* Error recovery

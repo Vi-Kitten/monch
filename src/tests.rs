@@ -718,7 +718,8 @@ fn test_many() {
     let mut iter = "abcabcdefghi".chars();
     assert_eq!(
         expect("abc", "test_failure")
-        .many::<!>()
+        .many()
+        .map_err::<!, _>(|_: !| unreachable!())
         .parse(&mut iter),
         Ok(vec!["abc".into(), "abc".into()])
     );
@@ -739,7 +740,8 @@ fn test_attempt_many() {
     let mut iter = "abcabcdef".chars();
     assert_eq!(
         expect("abc", "test_failure")
-        .attempt_many::<!>()
+        .attempt_many()
+        .map_err::<!, _>(|_: !| unreachable!())
         .parse(&mut iter),
         Ok(vec!["abc".into(), "abc".into()])
     );
@@ -860,28 +862,6 @@ fn test_attempt_least_until() {
         expect("jkl", "test_failure")
         .parse(&mut iter),
         Ok("jkl".into())
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
-#[test]
-fn test_most_until() {
-    let mut iter = "abcabcdefghijkljklmno".chars();
-    assert_eq!(
-        expect("abc", "test_failure_0")
-        .most_until(expect("ghi", "test_failure_1"))
-        .parse(&mut iter),
-        Ok((vec!["abc".into(), "abc".into()], "ghi".into()))
-    );
-    assert_eq!(
-        expect("jkl", "test_failure_0")
-        .most_until(expect("mno", "test_failure_1"))
-        .parse(&mut iter),
-        Ok((vec!["jkl".into(), "jkl".into()], "mno".into()))
     );
     assert_eq!(
         expect_end("test_failure")
