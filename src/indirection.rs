@@ -16,23 +16,16 @@ impl<P, F, I, T, E> UnsizedParser<I, T, E> for LazyParser<P, F> where
             return p.parse(iter)
         }
 
-        {
-            let parser = &mut *self.parser.borrow_mut();
-            match parser {
-                Ok(_) => panic!(),
-                Err(f) => {
-                    let mut g = None;
-                    std::mem::swap(f, &mut g);
-                    let p = g.unwrap()();
-                    *parser = Ok(p);
-                }
-            }
-        }
+        let mut parser = self.parser.borrow_mut();
+        let Err(f) = &mut*parser else {
+            panic!()
+        };
+        *parser = Ok(std::mem::take(f).unwrap()());
+        drop(parser);
 
         let Ok(p) = &*self.parser.borrow() else {
             panic!()
         };
-
         p.parse(iter)
     }
 }

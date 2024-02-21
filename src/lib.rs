@@ -1,9 +1,12 @@
 #![feature(decl_macro)]
 #![feature(never_type)]
 
+
 #[cfg(test)]
 mod tests;
 pub mod indirection;
+pub mod combinators;
+use combinators::*;
 
 pub enum ParseError<Msg = String> {
     UnexpectedEnd,
@@ -21,22 +24,18 @@ impl<F, I, T, E> UnsizedParser<I, T, E> for F where
     }
 }
 
-pub fn parse_ok<I, T, E>(t: T) -> impl Parser<I, T, E> where
+pub fn parse_ok<I, T, E>(t: T) -> ParseOk<T> where
     I: Iterator + Clone,
     T: Clone
 {
-    move |_iter: &mut I| {
-        Ok(t.clone())
-    }
+    ParseOk::new(t)
 }
 
-pub fn parse_err<I, T, E>(e: E) -> impl Parser<I, T, E> where
+pub fn parse_err<I, T, E>(e: E) -> ParseErr<E> where
     I: Iterator + Clone,
     E: Clone
 {
-    move |_iter: &mut I| {
-        Err(e.clone())
-    }
+    ParseErr::new(e)
 }
 
 pub trait UnsizedParser<I, T, E = ParseError> where
@@ -68,14 +67,20 @@ impl<P, I, T, E> Parser<I, T, E> for P where
     I: Iterator + Clone,
     P: Sized + UnsizedParser<I, T, E> {}
 
+pub macro recursive {
+    ($p:expr) => {
+        |iter: &mut _| {
+            $p.parse(iter)
+        }
+    }
+}
+
 pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
     I: Iterator + Clone,
     Self: Sized
 {
-    fn discard(self) -> impl Parser<I, (), E> {
-        move |iter: &mut I| {
-            self.parse(iter).map(|_| ())
-        }
+    fn discard(self) -> Map<Self, I, T, E, (), impl Fn(T)> {
+        self.map(|_| ())
     }
 
     fn lense<J>(self, f: impl Fn(&mut J) -> &mut I) -> impl Parser<J, T, E> where
@@ -90,95 +95,83 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
     //* Backtracking
 
     // backtrack on failure
-    fn attempt(self) -> impl Parser<I, T, E> {
-        move |iter: &mut I| {
-            self.attempt_parse(iter)
-        }
+    fn attempt(self) -> Attempt<Self, I, T, E> {
+        Attempt::new(self)
     }
 
     // backtrack on success
-    fn scry(self) -> impl Parser<I, T, E> {
-        move |iter: &mut I| {
-            self.scry_parse(iter)
-        }
+    fn scry(self) -> Scry<Self, I, T, E>  {
+        Scry::new(self)
     }
 
     // always backtrack
-    fn backtrack(self) -> impl Parser<I, T, E> {
-        move |iter: &mut I| {
-            self.backtrack_parse(iter)
-        }
+    fn backtrack(self) -> Backtrack<Self, I, T, E>  {
+        Backtrack::new(self)
     }
 
     //* Value mapping
 
-    fn map<U>(self, f: impl Fn(T) -> U) -> impl Parser<I, U, E> {
-        move |iter: &mut I| {
-            self.parse(iter).map(&f)
-        }
+    fn map<U, F>(self, f: F) -> Map<Self, I, T, E, U, F> where
+        F: Fn(T) -> U
+    {
+        Map::new(self, f)
     }
 
-    fn and_then<U>(self, f: impl Fn(T) -> Result<U, E>) -> impl Parser<I, U, E> {
-        move |iter: &mut I| {
-            self.parse(iter).and_then(&f)
-        }
+    fn and_then<U, F>(self, f: F) -> AndThen<Self, I, T, E, U, F> where
+        F: Fn(T) -> Result<U, E>
+    {
+        AndThen::new(self, f)
     }
 
-    fn scry_and_then<U>(self, f: impl Fn(T) -> Result<U, E>) -> impl Parser<I, U, E> {
-        move |iter: &mut I| {
-            self.scry_parse(iter).and_then(&f)
-        }
+    fn scry_and_then<U, F>(self, f: F) -> AndThen<Scry<Self, I, T, E>, I, T, E, U, F> where
+        F: Fn(T) -> Result<U, E>
+    {
+        self.scry().and_then(f)
     }
 
-    fn backtrack_and_then<U>(self, f: impl Fn(T) -> Result<U, E>) -> impl Parser<I, U, E> {
-        move |iter: &mut I| {
-            self.backtrack_parse(iter).and_then(&f)
-        }
+    fn backtrack_and_then<U, F>(self, f: F) -> AndThen<Backtrack<Self, I, T, E>, I, T, E, U, F> where
+        F: Fn(T) -> Result<U, E>
+    {
+        self.backtrack().and_then(f)
     }
 
-    fn and_compose<U>(self, p: impl Parser<I, U, E>) -> impl Parser<I, U, E> {
-        move |iter: &mut I| {
-            self.parse(iter).and_then(|_| p.parse(iter))
-        }
-    }
-
-    fn scry_and_compose<U>(self, p: impl Parser<I, U, E>) -> impl Parser<I, U, E> {
-        move |iter: &mut I| {
-            self.scry_parse(iter).and_then(|_| p.parse(iter))
-        }
-    }
-
-    fn backtrack_and_compose<U>(self, p: impl Parser<I, U, E>) -> impl Parser<I, U, E> {
-        move |iter: &mut I| {
-            self.backtrack_parse(iter).and_then(|_| p.parse(iter))
-        }
-    }
-
-    fn and_then_compose<U, P>(self, f: impl Fn(T) -> P) -> impl Parser<I, U, E> where
+    fn and_compose<U, P>(self, p: P) -> AndCompose<Self, I, T, E, P, U> where
         P: Parser<I, U, E>
     {
-        move |iter: &mut I| {
-            let t = self.parse(iter)?;
-            f(t).parse(iter)
-        }
+        AndCompose::new(self, p)
     }
 
-    fn scry_and_then_compose<U, P>(self, f: impl Fn(T) -> P) -> impl Parser<I, U, E> where
+    fn scry_and_compose<U, P>(self, p: P) -> AndCompose<Scry<Self, I, T, E>, I, T, E, P, U> where
         P: Parser<I, U, E>
     {
-        move |iter: &mut I| {
-            let t = self.scry_parse(iter)?;
-            f(t).parse(iter)
-        }
+        self.scry().and_compose(p)
     }
 
-    fn backtrack_and_then_compose<U, P>(self, f: impl Fn(T) -> P) -> impl Parser<I, U, E> where
+    fn backtrack_and_compose<U, P>(self, p: P) -> AndCompose<Backtrack<Self, I, T, E>, I, T, E, P, U> where
         P: Parser<I, U, E>
     {
-        move |iter: &mut I| {
-            let t = self.backtrack_parse(iter)?;
-            f(t).parse(iter)
-        }
+        self.backtrack().and_compose(p)
+    }
+
+    fn and_then_compose<U, P, F>(self, f: F) -> AndThenCompose<Self, I, T, E, P, U, F> where
+        P: Parser<I, U, E>,
+        F: Fn(T) -> P
+    {
+        AndThenCompose::new(self, f)
+    }
+
+    fn scry_and_then_compose<U, P, F>(self, f: F) -> AndThenCompose<Scry<Self, I, T, E>, I, T, E, P, U, F> where
+        P: Parser<I, U, E>,
+        F: Fn(T) -> P
+    {
+        self.scry().and_then_compose(f)
+    }
+
+    fn backtrack_and_then_compose<U, P, F>(self, f: F) -> AndThenCompose<Backtrack<Self, I, T, E>, I, T, E, P, U, F> where
+        P: Parser<I, U, E>,
+        F: Fn(T) -> P
+    {
+        self.backtrack().and_then_compose(f)
     }
 
     //* Error mapping

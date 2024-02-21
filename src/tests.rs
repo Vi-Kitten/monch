@@ -67,7 +67,7 @@ fn test_parse() {
 fn test_parse_ok() {
     let mut iter = "".chars();
     assert_eq!(
-        parse_ok::<_, _, !>("abc".into())
+        parse_ok("abc".into())
         .parse(&mut iter),
         Ok("abc")
     );
@@ -82,7 +82,7 @@ fn test_parse_ok() {
 fn test_parse_err() {
     let mut iter = "".chars();
     assert_eq!(
-        parse_err::<_, !, _>(format!("err"))
+        parse_err(format!("err"))
         .parse(&mut iter),
         Err("err".into())
     );
@@ -1057,9 +1057,10 @@ enum TestRecExpr {
 
 #[test]
 fn test_recursive_capability() {
+    use TestRecExpr::*;
     fn expr_parser() -> impl Parser<std::str::Chars<'static>, TestRecExpr, String> {
-        |iter: &mut _| { // required to create recursively defined lambda type
-            expect("abc", "expected 'abc'").map(|_| TestRecExpr::Abc)
+        recursive!( // required to create recursively defined lambda type
+            expect("abc", "expected 'abc'").map(|_| Abc)
             .attempt_or_compose(
                 expect("(", "expected '('")
                 .and_compose(
@@ -1067,13 +1068,11 @@ fn test_recursive_capability() {
                     .attempt_most_until(
                         expect(")", "expected ')'")
                     )
-                    .map(|(exprs, _)| TestRecExpr::Exprs(exprs))
+                    .map(|(exprs, _)| Exprs(exprs))
                 )
             )
-            .parse(iter)
-        }
+        )
     }
-    use TestRecExpr::*;
     let mut iter = "abc".chars();
     assert_eq!(
         expr_parser()
@@ -1125,5 +1124,4 @@ fn test_recursive_capability() {
         .parse(&mut iter),
         Ok(())
     )
-    
 }
