@@ -695,3 +695,131 @@ impl<P, I, T, E, Q, U, F> UnsizedParser<I, (Vec<T>, U), E> for Most<P, I, T, E, 
         }
     }
 }
+
+//* Error recovery
+
+#[derive(Clone)]
+pub struct Continue<P, I, T, E, Q, F> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, (), F>
+{
+    parser: P,
+    recover: Q,
+    _i: std::marker::PhantomData<I>,
+    _t: std::marker::PhantomData<T>,
+    _e: std::marker::PhantomData<E>,
+    _f: std::marker::PhantomData<F>,
+}
+
+impl<P, I, T, E, Q, F> Continue<P, I, T, E, Q, F> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, (), F>
+{
+    pub fn new(parser: P, recover: Q) -> Continue<P, I, T, E, Q, F> {
+        Continue {
+            parser: parser,
+            recover: recover,
+            _i: std::marker::PhantomData,
+            _t: std::marker::PhantomData,
+            _e: std::marker::PhantomData,
+            _f: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<P, I, T, E, Q, F> UnsizedParser<I, Result<T, E>, F> for Continue<P, I, T, E, Q, F> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, (), F>
+{
+    fn parse(&self, iter: &mut I) -> Result<Result<T, E>, F> {
+        let res = self.parser.parse(iter);
+        self.recover.parse(iter)?;
+        Ok(res)
+    }
+}
+
+#[derive(Clone)]
+pub struct Recover<P, I, T, E, Q, F> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, (), F>
+{
+    parser: P,
+    recover: Q,
+    _i: std::marker::PhantomData<I>,
+    _t: std::marker::PhantomData<T>,
+    _e: std::marker::PhantomData<E>,
+    _f: std::marker::PhantomData<F>,
+}
+
+impl<P, I, T, E, Q, F> Recover<P, I, T, E, Q, F> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, (), F>
+{
+    pub fn new(parser: P, recover: Q) -> Recover<P, I, T, E, Q, F> {
+        Recover {
+            parser: parser,
+            recover: recover,
+            _i: std::marker::PhantomData,
+            _t: std::marker::PhantomData,
+            _e: std::marker::PhantomData,
+            _f: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<P, I, T, E, Q, F> UnsizedParser<I, Result<T, E>, F> for Recover<P, I, T, E, Q, F> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, (), F>
+{
+    fn parse(&self, iter: &mut I) -> Result<Result<T, E>, F> {
+        match self.parser.parse(iter) {
+            Ok(res) => Ok(Ok(res)),
+            Err(e) => self.recover.parse(iter).map(|_| Err(e)),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct AbsorbErr<P, I, T, E, U> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    T: Into<Result<U, E>>
+{
+    parser: P,
+    _i: std::marker::PhantomData<I>,
+    _t: std::marker::PhantomData<T>,
+    _e: std::marker::PhantomData<E>,
+    _u: std::marker::PhantomData<U>,
+}
+
+impl<P, I, T, E, U> AbsorbErr<P, I, T, E, U> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    T: Into<Result<U, E>>
+{
+    pub fn new(parser: P) -> AbsorbErr<P, I, T, E, U> {
+        AbsorbErr {
+            parser: parser,
+            _i: std::marker::PhantomData,
+            _t: std::marker::PhantomData,
+            _e: std::marker::PhantomData,
+            _u: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<P, I, T, E, U> UnsizedParser<I, U, E> for AbsorbErr<P, I, T, E, U> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    T: Into<Result<U, E>>
+{
+    fn parse(&self, iter: &mut I) -> Result<U, E> {
+        self.parser.parse(iter)?.into()
+    }
+}

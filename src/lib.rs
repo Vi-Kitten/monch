@@ -277,62 +277,45 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
 
     //* Error recovery
 
-    fn continue_with<F>(self, p: impl Parser<I, (), F>) -> impl Parser<I, Result<T, E>, F> {
-        move |iter: &mut I| {
-            let res = self.parse(iter);
-            p.parse(iter)?;
-            Ok(res)
-        }
+    fn continue_with<F, P>(self, p: P) -> Continue<Self, I, T, E, P, F> where
+        P: Parser<I, (), F>
+    {
+        Continue::new(self, p)
     }
 
-    fn scry_then_continue_with<F>(self, p: impl Parser<I, (), F>) -> impl Parser<I, Result<T, E>, F> {
-        move |iter: &mut I| {
-            let res = self.scry_parse(iter);
-            p.parse(iter)?;
-            Ok(res)
-        }
+    fn scry_then_continue_with<F, P>(self, p: P) -> Continue<Scry<Self, I, T, E>, I, T, E, P, F> where
+        P: Parser<I, (), F>
+    {
+        self.scry().continue_with(p)
     }
 
-    fn backtrack_then_continue_with<F>(self, p: impl Parser<I, (), F>) -> impl Parser<I, Result<T, E>, F> {
-        move |iter: &mut I| {
-            let res = self.backtrack_parse(iter);
-            p.parse(iter)?;
-            Ok(res)
-        }
+    fn backtrack_then_continue_with<F, P>(self, p: P) -> Continue<Backtrack<Self, I, T, E>, I, T, E, P, F> where
+        P: Parser<I, (), F>
+    {
+        self.backtrack().continue_with(p)
     }
 
-    fn recover_with<F>(self, p: impl Parser<I, (), F>) -> impl Parser<I, Result<T, E>, F> {
-        move |iter: &mut I| {
-            match self.parse(iter) {
-                Ok(res) => Ok(Ok(res)),
-                Err(e) => p.parse(iter).map(|_| Err(e)),
-            }
-        }
+    fn recover_with<F, P>(self, p: P) -> Recover<Self, I, T, E, P, F> where
+        P: Parser<I, (), F>
+    {
+        Recover::new(self, p)
     }
 
-    fn attempt_then_recover_with<F>(self, p: impl Parser<I, (), F>) -> impl Parser<I, Result<T, E>, F> {
-        move |iter: &mut I| {
-            match self.attempt_parse(iter) {
-                Ok(res) => Ok(Ok(res)),
-                Err(e) => p.parse(iter).map(|_| Err(e)),
-            }
-        }
+    fn attempt_then_recover_with<F, P>(self, p: P) -> Recover<Attempt<Self, I, T, E>, I, T, E, P, F> where
+        P: Parser<I, (), F>
+    {
+        self.attempt().recover_with(p)
     }
 
-    fn backtrack_then_recover_with<F>(self, p: impl Parser<I, (), F>) -> impl Parser<I, Result<T, E>, F> {
-        move |iter: &mut I| {
-            match self.backtrack_parse(iter) {
-                Ok(res) => Ok(Ok(res)),
-                Err(e) => p.parse(iter).map(|_| Err(e)),
-            }
-        }
+    fn backtrack_then_recover_with<F, P>(self, p: P) -> Recover<Backtrack<Self, I, T, E>, I, T, E, P, F> where
+        P: Parser<I, (), F>
+    {
+        self.backtrack().recover_with(p)
     }
 
-    fn absorb_err<U>(self) -> impl Parser<I, U, E> where
+    fn absorb_err<U>(self) -> AbsorbErr<Self, I, T, E, U> where
         T: Into<Result<U, E>>
     {
-        move |iter: &mut I| {
-            self.parse(iter)?.into()
-        }
+        AbsorbErr::new(self)
     }
 }
