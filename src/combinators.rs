@@ -52,7 +52,7 @@ impl<I, T, E> UnsizedParser<I, T, E> for ParseErr<E> where
     }
 }
 
-//* Backtracking
+// Backtracking
 
 #[derive(Clone)]
 pub struct Attempt<P, I, T, E> where
@@ -156,7 +156,7 @@ impl<P, I, T, E> UnsizedParser<I, T, E> for Backtrack<P, I, T, E> where
     }
 }
 
-//* Value mapping
+// Value mapping
 
 #[derive(Clone)]
 pub struct Map<P, I, T, E, U, F> where
@@ -327,7 +327,7 @@ impl<P, I, T, E, Q, U, F> UnsizedParser<I, U, E> for AndThenCompose<P, I, T, E, 
     }
 }
 
-//* Error mapping
+// Error mapping
 
 #[derive(Clone)]
 pub struct MapErr<P, I, T, E, F, O> where
@@ -496,7 +496,7 @@ impl<P, I, T, E, Q, F, O> UnsizedParser<I, T, F> for OrElseCompose<P, I, T, E, Q
     }
 }
 
-//* Vector Combinators
+// Vector Combinators
 
 #[derive(Clone)]
 pub struct Many<P, I, T, E> where
@@ -696,7 +696,7 @@ impl<P, I, T, E, Q, U, F> UnsizedParser<I, (Vec<T>, U), E> for Most<P, I, T, E, 
     }
 }
 
-//* Error recovery
+// Error recovery
 
 #[derive(Clone)]
 pub struct Continue<P, I, T, E, Q, F> where

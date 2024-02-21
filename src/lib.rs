@@ -90,7 +90,7 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
         }
     }
 
-    //* Backtracking
+    // Backtracking
 
     // backtrack on failure
     fn attempt(self) -> Attempt<Self, I, T, E> {
@@ -107,7 +107,7 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
         Backtrack::new(self)
     }
 
-    //* Value mapping
+    // Value mapping
 
     fn map<U, F>(self, f: F) -> Map<Self, I, T, E, U, F> where
         F: Fn(T) -> U
@@ -134,7 +134,7 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
         AndThenCompose::new(self, f)
     }
 
-    //* Error mapping
+    // Error mapping
 
     fn map_err<F, O>(self, o: O) -> MapErr<Self, I, T, E, F, O> where
         O: Fn(E) -> F
@@ -161,7 +161,7 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
         OrElseCompose::new(self, o)
     }
 
-    //* Vector Combinators
+    // Vector Combinators
 
     fn many(self) -> Many<Self, I, T, E> {
         Many::new(self)
@@ -177,11 +177,12 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
         Least::new(self, end)
     }
 
+    // does not need an attempt
     fn attempt_most_until<U, F>(self, end: impl Parser<I, U, F>) -> impl Parser<I, (Vec<T>, U), E> {
         Most::new(self, end)
     }
 
-    //* Error recovery
+    // Error recovery
 
     fn continue_with<F, P>(self, p: P) -> Continue<Self, I, T, E, P, F> where
         P: Parser<I, (), F>

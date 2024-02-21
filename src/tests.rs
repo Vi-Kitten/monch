@@ -134,7 +134,7 @@ fn test_lense() {
     )
 }
 
-//* Backtracking
+// Backtracking
 
 // backtrack on failure
 #[test]
@@ -273,7 +273,7 @@ fn test_backtrack_parse() {
     )
 }
 
-//* Value mapping
+// Value mapping
 
 #[test]
 fn test_map() {
@@ -341,7 +341,7 @@ fn test_and_then_compose() {
     )
 }
 
-//* Error mapping
+// Error mapping
 
 #[test]
 fn test_map_err() {
@@ -417,7 +417,7 @@ fn test_or_else_compose() {
     )
 }
 
-//* Vector Combinators
+// Vector Combinators
 
 #[test]
 fn test_many() {
@@ -511,7 +511,7 @@ fn test_attempt_most_until() {
     )
 }
 
-//* Error recovery
+// Error recovery
 
 #[test]
 fn test_continue_with() {
@@ -581,7 +581,7 @@ fn test_absorb_err() {
     )
 }
 
-//* Functionality Testing
+// Functionality Testing
 
 #[derive(Debug, PartialEq, Eq)]
 enum TestRecExpr {
