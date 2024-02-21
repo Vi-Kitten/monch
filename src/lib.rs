@@ -24,15 +24,13 @@ impl<F, I, T, E> UnsizedParser<I, T, E> for F where
     }
 }
 
-pub fn parse_ok<I, T, E>(t: T) -> ParseOk<T> where
-    I: Iterator + Clone,
+pub fn parse_ok<T>(t: T) -> ParseOk<T> where
     T: Clone
 {
     ParseOk::new(t)
 }
 
-pub fn parse_err<I, T, E>(e: E) -> ParseErr<E> where
-    I: Iterator + Clone,
+pub fn parse_err<E>(e: E) -> ParseErr<E> where
     E: Clone
 {
     ParseErr::new(e)
@@ -176,80 +174,71 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
 
     //* Error mapping
 
-    fn map_err<F>(self, o: impl Fn(E) -> F) -> impl Parser<I, T, F> {
-        move |iter: &mut _| {
-            self.parse(iter).map_err(&o)
-        }
+    fn map_err<F, O>(self, o: O) -> MapErr<Self, I, T, E, F, O> where
+        O: Fn(E) -> F
+    {
+        MapErr::new(self, o)
     }
 
     // variants:
     // attempt_or...
     // backtrack_or...
 
-    fn or_else<F>(self, o: impl Fn(E) -> Result<T, F>) -> impl Parser<I, T, F> {
-        move |iter: &mut I| {
-            self.parse(iter).or_else(&o)
-        }
+    fn or_else<F, O>(self, o: O) -> OrElse<Self, I, T, E, F, O> where
+        O: Fn(E) -> Result<T, F>
+    {
+        OrElse::new(self, o)
     }
 
-    fn attempt_or_else<F>(self, o: impl Fn(E) -> Result<T, F>) -> impl Parser<I, T, F> {
-        move |iter: &mut I| {
-            self.attempt_parse(iter).or_else(&o)
-        }
+    fn attempt_or_else<F, O>(self, o: O) -> OrElse<Attempt<Self, I, T, E>, I, T, E, F, O> where
+        O: Fn(E) -> Result<T, F>
+    {
+        self.attempt().or_else(o)
     }
 
-    fn backtrack_or_else<F>(self, o: impl Fn(E) -> Result<T, F>) -> impl Parser<I, T, F> {
-        move |iter: &mut I| {
-            self.backtrack_parse(iter).or_else(&o)
-        }
+    fn backtrack_or_else<F, O>(self, o: O) -> OrElse<Backtrack<Self, I, T, E>, I, T, E, F, O> where
+        O: Fn(E) -> Result<T, F>
+    {
+        self.backtrack().or_else(o)
     }
 
-    fn or_compose<F>(self, p: impl Parser<I, T, F>) -> impl Parser<I, T, F> {
-        move |iter: &mut I| {
-            self.parse(iter).or_else(|_| p.parse(iter))
-        }
-    }
-
-    fn attempt_or_compose<F>(self, p: impl Parser<I, T, F>) -> impl Parser<I, T, F> {
-        move |iter: &mut I| {
-            self.attempt_parse(iter).or_else(|_| p.parse(iter))
-        }
-    }
-
-    fn backtrack_or_compose<F>(self, p: impl Parser<I, T, F>) -> impl Parser<I, T, F> {
-        move |iter: &mut I| {
-            self.backtrack_parse(iter).or_else(|_| p.parse(iter))
-        }
-    }
-
-    fn or_else_compose<F, P>(self, o: impl Fn(E) -> P) -> impl Parser<I, T, F> where
+    fn or_compose<F, P>(self, p: P) -> OrCompose<Self, I, T, E, P, F> where
         P: Parser<I, T, F>
     {
-        move |iter: &mut I| {
-            self.parse(iter).or_else(|e| {
-                o(e).parse(iter)
-            })
-        }
+        OrCompose::new(self, p)
     }
 
-    fn attempt_or_else_compose<F, P>(self, o: impl Fn(E) -> P) -> impl Parser<I, T, F> where
+    fn attempt_or_compose<F, P>(self, p: P) -> OrCompose<Attempt<Self, I, T, E>, I, T, E, P, F> where
         P: Parser<I, T, F>
     {
-        move |iter: &mut I| {
-            self.attempt_parse(iter).or_else(|e| {
-                o(e).parse(iter)
-            })
-        }
+        self.attempt().or_compose(p)
     }
 
-    fn backtrack_or_else_compose<F, P>(self, o: impl Fn(E) -> P) -> impl Parser<I, T, F> where
+    fn backtrack_or_compose<F, P>(self, p: P) -> OrCompose<Backtrack<Self, I, T, E>, I, T, E, P, F> where
         P: Parser<I, T, F>
     {
-        move |iter: &mut I| {
-            self.backtrack_parse(iter).or_else(|e| {
-                o(e).parse(iter)
-            })
-        }
+        self.backtrack().or_compose(p)
+    }
+
+    fn or_else_compose<F, P, O>(self, o: O) -> OrElseCompose<Self, I, T, E, P, F, O> where
+        P: Parser<I, T, F>,
+        O: Fn(E) -> P
+    {
+        OrElseCompose::new(self, o)
+    }
+
+    fn attempt_or_else_compose<F, P, O>(self, o: O) -> OrElseCompose<Attempt<Self, I, T, E>, I, T, E, P, F, O> where
+        P: Parser<I, T, F>,
+        O: Fn(E) -> P
+    {
+        self.attempt().or_else_compose(o)
+    }
+
+    fn backtrack_or_else_compose<F, P, O>(self, o: O) -> OrElseCompose<Backtrack<Self, I, T, E>, I, T, E, P, F, O> where
+        P: Parser<I, T, F>,
+        O: Fn(E) -> P
+    {
+        self.backtrack().or_else_compose(o)
     }
 
     //* Vector Combinators

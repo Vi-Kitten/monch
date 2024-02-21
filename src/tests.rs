@@ -25,7 +25,11 @@ impl<I: Iterator + Clone> Clone for WrappedIter<I> {
     }
 }
 
-fn expect<'s, T: 's + Into<String>, E: 's + Into<String>, I: Iterator<Item = char> + Clone>(t: T, e: E) -> impl Parser<I, String, String> {
+fn expect<T, E, I>(t: T, e: E) -> impl Parser<I, String, String> where
+    T: Into<String>,
+    E: Into<String>,
+    I: Iterator<Item = char> + Clone
+{
     let t_string = t.into();
     let e_string = e.into();
     move |iter: &mut I| {
@@ -37,7 +41,10 @@ fn expect<'s, T: 's + Into<String>, E: 's + Into<String>, I: Iterator<Item = cha
     }
 }
 
-fn expect_end<'s, E: 's + Into<String>, I: Iterator<Item = char> + Clone>(e: E) -> impl Parser<I, (), String> {
+fn expect_end<E, I>(e: E) -> impl Parser<I, (), String> where
+    E: Into<String>,
+    I: Iterator<Item = char> + Clone
+{
     let e_string = e.into();
     move |iter: &mut I| {
         if let None = iter.next() {
@@ -68,11 +75,12 @@ fn test_parse_ok() {
     let mut iter = "".chars();
     assert_eq!(
         parse_ok("abc".into())
+        .map_err::<!, _>(|_: !| unreachable!())
         .parse(&mut iter),
         Ok("abc")
     );
     assert_eq!(
-        expect_end("test_failure")
+        expect_end("test_faileure")
         .parse(&mut iter),
         Ok(())
     )
@@ -83,6 +91,7 @@ fn test_parse_err() {
     let mut iter = "".chars();
     assert_eq!(
         parse_err(format!("err"))
+        .map::<!, _>(|_: !| unreachable!())
         .parse(&mut iter),
         Err("err".into())
     );
@@ -412,7 +421,9 @@ fn test_and_then_compose() {
     let mut iter = "abcABC".chars();
     assert_eq!(
         expect("abc", "test_failure_0")
-        .and_then_compose(|s| expect(s.to_uppercase(), "test_failure_1"))
+        .and_then_compose(
+            |s| expect(s.to_uppercase(), "test_failure_1")
+        )
         .parse(&mut iter),
         Ok("ABC".into())
     );
@@ -428,7 +439,9 @@ fn test_scry_and_then_compose() {
     let mut iter = "abcABCdef".chars();
     assert_eq!(
         expect("abc", "test_failure_0")
-        .scry_and_then_compose(|s| expect(format!("abc{}", s.to_uppercase()), "test_failure_1"))
+        .scry_and_then_compose(|s|
+            expect(format!("abc{}", s.to_uppercase()), "test_failure_1")
+        )
         .parse(&mut iter),
         Ok("abcABC".into())
     );
@@ -449,13 +462,17 @@ fn test_backtrack_and_then_compose() {
     let mut iter = "abcABCdef".chars();
     assert_eq!(
         expect("abc", "test_failure_0")
-        .backtrack_and_then_compose(|s| expect(format!("abc{}", s.to_uppercase()), "test_failure_1"))
+        .backtrack_and_then_compose(|s|
+            expect(format!("abc{}", s.to_uppercase()), "test_failure_1")
+        )
         .parse(&mut iter),
         Ok("abcABC".into())
     );
     assert_eq!(
         expect("abc", "err")
-        .backtrack_and_then_compose(|s| expect(format!("abc{}", s.to_uppercase()), "test_failure"))
+        .backtrack_and_then_compose(|s|
+            expect(format!("abc{}", s.to_uppercase()), "test_failure")
+        )
         .parse(&mut iter),
         Err("err".into())
     );

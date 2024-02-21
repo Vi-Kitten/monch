@@ -273,7 +273,9 @@ impl<P, I, T, E, Q, U> UnsizedParser<I, U, E> for AndCompose<P, I, T, E, Q, U> w
     Q: Parser<I, U, E>
 {
     fn parse(&self, iter: &mut I) -> Result<U, E> {
-        self.parser.parse(iter).and_then(|_| self.other.parse(iter))
+        self.parser.parse(iter).and_then(|_|
+            self.other.parse(iter)
+        )
     }
 }
 
@@ -319,6 +321,177 @@ impl<P, I, T, E, Q, U, F> UnsizedParser<I, U, E> for AndThenCompose<P, I, T, E, 
     F: Fn(T) -> Q
 {
     fn parse(&self, iter: &mut I) -> Result<U, E> {
-        (self.bind)(self.parser.parse(iter)?).parse(iter)
+        (self.bind)(
+            self.parser.parse(iter)?
+        ).parse(iter)
+    }
+}
+
+//* Error mapping
+
+#[derive(Clone)]
+pub struct MapErr<P, I, T, E, F, O> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    O: Fn(E) -> F
+{
+    parser: P, 
+    inner_map: O,
+    _i: std::marker::PhantomData<I>,
+    _t: std::marker::PhantomData<T>,
+    _e: std::marker::PhantomData<E>,
+}
+
+impl<P, I, T, E, F, O> MapErr<P, I, T, E, F, O> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    O: Fn(E) -> F
+{
+    pub fn new(parser: P, inner_map: O) -> MapErr<P, I, T, E, F, O> {
+        MapErr {
+            parser: parser, 
+            inner_map: inner_map,
+            _i: std::marker::PhantomData,
+            _t: std::marker::PhantomData,
+            _e: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<P, I, T, E, F, O> UnsizedParser<I, T, F> for MapErr<P, I, T, E, F, O> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    O: Fn(E) -> F
+{
+    fn parse(&self, iter: &mut I) -> Result<T, F> {
+        self.parser.parse(iter).map_err(&self.inner_map)
+    }
+}
+
+#[derive(Clone)]
+pub struct OrElse<P, I, T, E, F, O> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    O: Fn(E) -> Result<T, F>
+{
+    parser: P, 
+    inner_bind: O,
+    _i: std::marker::PhantomData<I>,
+    _t: std::marker::PhantomData<T>,
+    _e: std::marker::PhantomData<E>,
+}
+
+impl<P, I, T, E, F, O> OrElse<P, I, T, E, F, O> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    O: Fn(E) -> Result<T, F>
+{
+    pub fn new(parser: P, inner_bind: O) -> OrElse<P, I, T, E, F, O> {
+        OrElse {
+            parser: parser, 
+            inner_bind: inner_bind,
+            _i: std::marker::PhantomData,
+            _t: std::marker::PhantomData,
+            _e: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<P, I, T, E, F, O> UnsizedParser<I, T, F> for OrElse<P, I, T, E, F, O> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    O: Fn(E) -> Result<T, F>
+{
+    fn parse(&self, iter: &mut I) -> Result<T, F> {
+        self.parser.parse(iter).or_else(&self.inner_bind)
+    }
+}
+
+#[derive(Clone)]
+pub struct OrCompose<P, I, T, E, Q, F> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, T, F>
+{
+    parser: P, 
+    other: Q,
+    _i: std::marker::PhantomData<I>,
+    _t: std::marker::PhantomData<T>,
+    _e: std::marker::PhantomData<E>,
+    _f: std::marker::PhantomData<F>,
+}
+
+impl<P, I, T, E, Q, F> OrCompose<P, I, T, E, Q, F> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, T, F>
+{
+    pub fn new(parser: P, other: Q) -> OrCompose<P, I, T, E, Q, F> {
+        OrCompose {
+            parser: parser, 
+            other: other,
+            _i: std::marker::PhantomData,
+            _t: std::marker::PhantomData,
+            _e: std::marker::PhantomData,
+            _f: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<P, I, T, E, Q, F> UnsizedParser<I, T, F> for OrCompose<P, I, T, E, Q, F> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, T, F>
+{
+    fn parse(&self, iter: &mut I) -> Result<T, F> {
+        self.parser.parse(iter).or_else(|_|
+            self.other.parse(iter)
+        )
+    }
+}
+
+#[derive(Clone)]
+pub struct OrElseCompose<P, I, T, E, Q, F, O> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, T, F>,
+    O: Fn(E) -> Q
+{
+    parser: P, 
+    bind: O,
+    _i: std::marker::PhantomData<I>,
+    _t: std::marker::PhantomData<T>,
+    _e: std::marker::PhantomData<E>,
+    _f: std::marker::PhantomData<F>,
+}
+
+impl<P, I, T, E, Q, F, O> OrElseCompose<P, I, T, E, Q, F, O> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, T, F>,
+    O: Fn(E) -> Q
+{
+    pub fn new(parser: P, bind: O) -> OrElseCompose<P, I, T, E, Q, F, O> {
+        OrElseCompose {
+            parser: parser, 
+            bind: bind,
+            _i: std::marker::PhantomData,
+            _t: std::marker::PhantomData,
+            _e: std::marker::PhantomData,
+            _f: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<P, I, T, E, Q, F, O> UnsizedParser<I, T, F> for OrElseCompose<P, I, T, E, Q, F, O> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    Q: Parser<I, T, F>,
+    O: Fn(E) -> Q
+{
+    fn parse(&self, iter: &mut I) -> Result<T, F> {
+        self.parser.parse(iter).or_else(|e|
+            (self.bind)(e).parse(iter)
+        )
     }
 }
