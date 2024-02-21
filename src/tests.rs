@@ -308,52 +308,6 @@ fn test_and_then() {
 }
 
 #[test]
-fn test_scry_and_then() {
-    let mut iter = "abc".chars();
-    assert_eq!(
-        expect("abc", "test_failure")
-        .scry_and_then(|s| Ok(s.to_uppercase()))
-        .parse(&mut iter),
-        Ok("ABC".into())
-    );
-    assert_eq!(
-        expect("abc", "test_failure").parse(&mut iter),
-        Ok("abc".into())
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
-#[test]
-fn test_backtrack_and_then() {
-    let mut iter = "abc".chars();
-    assert_eq!(
-        expect("abc", "test_failure")
-        .backtrack_and_then(|s| Ok(s.to_uppercase()))
-        .parse(&mut iter),
-        Ok("ABC".into())
-    );
-    assert_eq!(
-        expect("def", "err")
-        .backtrack_and_then(|s| Ok(s.to_uppercase()))
-        .parse(&mut iter),
-        Err("err".into())
-    );
-    assert_eq!(
-        expect("abc", "test_failure").parse(&mut iter),
-        Ok("abc".into())
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
-#[test]
 fn test_and_compose() {
     let mut iter = "abcdef".chars();
     assert_eq!(
@@ -361,53 +315,6 @@ fn test_and_compose() {
         .and_compose(expect("def", "test_failure_1"))
         .parse(&mut iter),
         Ok("def".into())
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
-#[test]
-fn test_scry_and_compose() {
-    let mut iter = "abcdefghi".chars();
-    assert_eq!(
-        expect("abc", "test_failure_0")
-        .scry_and_compose(expect("abcdef", "test_failure_0"))
-        .parse(&mut iter),
-        Ok("abcdef".into())
-    );
-    assert_eq!(
-        expect("ghi", "test_failure").parse(&mut iter),
-        Ok("ghi".into())
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
-#[test]
-fn test_backtrack_and_compose() {
-    let mut iter = "abcdefghi".chars();
-    assert_eq!(
-        expect("abc", "test_failure_0")
-        .backtrack_and_compose(expect("abcdef", "test_failure_1"))
-        .parse(&mut iter),
-        Ok("abcdef".into())
-    );
-    assert_eq!(
-        expect("abc", "err")
-        .backtrack_and_compose(expect("abcdef", "test_failure"))
-        .parse(&mut iter),
-        Err("err".into())
-    );
-    assert_eq!(
-        expect("ghi", "test_failure")
-        .parse(&mut iter),
-        Ok("ghi".into())
     );
     assert_eq!(
         expect_end("test_failure")
@@ -426,60 +333,6 @@ fn test_and_then_compose() {
         )
         .parse(&mut iter),
         Ok("ABC".into())
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
-#[test]
-fn test_scry_and_then_compose() {
-    let mut iter = "abcABCdef".chars();
-    assert_eq!(
-        expect("abc", "test_failure_0")
-        .scry_and_then_compose(|s|
-            expect(format!("abc{}", s.to_uppercase()), "test_failure_1")
-        )
-        .parse(&mut iter),
-        Ok("abcABC".into())
-    );
-    assert_eq!(
-        expect("def", "test_failure")
-        .parse(&mut iter),
-        Ok("def".into())
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
-#[test]
-fn test_backtrack_and_then_compose() {
-    let mut iter = "abcABCdef".chars();
-    assert_eq!(
-        expect("abc", "test_failure_0")
-        .backtrack_and_then_compose(|s|
-            expect(format!("abc{}", s.to_uppercase()), "test_failure_1")
-        )
-        .parse(&mut iter),
-        Ok("abcABC".into())
-    );
-    assert_eq!(
-        expect("abc", "err")
-        .backtrack_and_then_compose(|s|
-            expect(format!("abc{}", s.to_uppercase()), "test_failure")
-        )
-        .parse(&mut iter),
-        Err("err".into())
-    );
-    assert_eq!(
-        expect("def", "test_failure")
-        .parse(&mut iter),
-        Ok("def".into())
     );
     assert_eq!(
         expect_end("test_failure")
@@ -527,55 +380,6 @@ fn test_or_else() {
 }
 
 #[test]
-fn test_attempt_or_else() {
-    let mut iter = "def".chars();
-    assert_eq!(
-        expect("abc", "err")
-        .attempt_or_else(|e| Err(e.to_uppercase()))
-        .parse(&mut iter),
-        Err("ERR".into())
-    );
-    assert_eq!(
-        expect("def", "err")
-        .attempt_or_else(|e| Err(e.to_uppercase()))
-        .parse(&mut iter),
-        Ok("def".into())
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
-#[test]
-fn test_backtrack_or_else() {
-    let mut iter = "def".chars();
-    assert_eq!(
-        expect("abc", "err")
-        .backtrack_or_else(|e| Err(e.to_uppercase()))
-        .parse(&mut iter),
-        Err("ERR".into())
-    );
-    assert_eq!(
-        expect("def", "err")
-        .backtrack_or_else(|e| Err(e.to_uppercase()))
-        .parse(&mut iter),
-        Ok("def".into())
-    );
-    assert_eq!(
-        expect("def", "test_failure")
-        .parse(&mut iter),
-        Ok("def".into())
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
-#[test]
 fn test_or_compose() {
     let mut iter = "defghi".chars();
     assert_eq!(
@@ -583,55 +387,6 @@ fn test_or_compose() {
         .or_compose(expect("ghi", "test_failure"))
         .parse(&mut iter),
         Ok("ghi".into())
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
-#[test]
-fn test_attempt_or_compose() {
-    let mut iter = "defghi".chars();
-    assert_eq!(
-        expect("abc", "err")
-        .attempt_or_compose(expect("def", "test_failure"))
-        .parse(&mut iter),
-        Ok("def".into())
-    );
-    assert_eq!(
-        expect("ghi", "test_failure_0")
-        .attempt_or_compose(expect("ijk", "test_failure_1"))
-        .parse(&mut iter),
-        Ok("ghi".into())
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
-#[test]
-fn test_backtrack_or_compose() {
-    let mut iter = "defghijkl".chars();
-    assert_eq!(
-        expect("abc", "err")
-        .backtrack_or_compose(expect("def", "test_failure"))
-        .parse(&mut iter),
-        Ok("def".into())
-    );
-    assert_eq!(
-        expect("ghi", "test_failure_0")
-        .backtrack_or_compose(expect("ghijkl", "test_failure_1"))
-        .parse(&mut iter),
-        Ok("ghi".into())
-    );
-    assert_eq!(
-        expect("ghijkl", "test_failure")
-        .parse(&mut iter),
-        Ok("ghijkl".into())
     );
     assert_eq!(
         expect_end("test_failure")
@@ -662,55 +417,6 @@ fn test_or_else_compose() {
     )
 }
 
-#[test]
-fn test_attempt_or_else_compose() {
-    let mut iter = "ghijkl".chars();
-    assert_eq!(
-        expect("abc", "err")
-        .attempt_or_else_compose(|e| expect("def", e))
-        .parse(&mut iter),
-        Err("err".into())
-    );
-    assert_eq!(
-        expect("jkl", "test_failure")
-        .attempt_or_else_compose(|e| expect("mno", e))
-        .parse(&mut iter),
-        Ok("jkl".into())
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
-#[test]
-fn test_backtrack_or_else_compose() {
-    let mut iter = "ghijkl".chars();
-    assert_eq!(
-        expect("abc", "err")
-        .backtrack_or_else_compose(|e| expect("def", e))
-        .parse(&mut iter),
-        Err("err".into())
-    );
-    assert_eq!(
-        expect("jkl", "test_failure")
-        .backtrack_or_else_compose(|e| expect("mno", e))
-        .parse(&mut iter),
-        Ok("jkl".into())
-    );
-    assert_eq!(
-        expect("jkl", "test_failure")
-        .parse(&mut iter),
-        Ok("jkl".into())
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
 //* Vector Combinators
 
 #[test]
@@ -727,28 +433,6 @@ fn test_many() {
         expect("ghi", "test_failure")
         .parse(&mut iter),
         Ok("ghi".into())
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
-#[test]
-fn test_attempt_many() {
-    let mut iter = "abcabcdef".chars();
-    assert_eq!(
-        expect("abc", "test_failure")
-        .attempt_many()
-        .map_err::<!, _>(|_: !| unreachable!())
-        .parse(&mut iter),
-        Ok(vec!["abc".into(), "abc".into()])
-    );
-    assert_eq!(
-        expect("def", "test_failure")
-        .parse(&mut iter),
-        Ok("def".into())
     );
     assert_eq!(
         expect_end("test_failure")
@@ -785,33 +469,6 @@ fn test_some() {
 }
 
 #[test]
-fn test_attempt_some() {
-    let mut iter = "defdefghi".chars();
-    assert_eq!(
-        expect("abc", "err")
-        .attempt_some()
-        .parse(&mut iter),
-        Err("err".into())
-    );
-    assert_eq!(
-        expect("def", "test_failure")
-        .attempt_some()
-        .parse(&mut iter),
-        Ok(vec!["def".into(), "def".into()])
-    );
-    assert_eq!(
-        expect("ghi", "test_failure")
-        .parse(&mut iter),
-        Ok("ghi".into())
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
-#[test]
 fn test_least_until() {
     let mut iter = ".def.def.def:ghi".chars();
     assert_eq!(
@@ -830,38 +487,6 @@ fn test_least_until() {
         expect("ghi", "test_failure")
         .parse(&mut iter),
         Ok("ghi".into())
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
-#[test]
-fn test_attempt_least_until() {
-    let mut iter = ".def.ghi.ghi:jkl".chars();
-    assert_eq!(
-        expect("abc", "test_failure")
-        .attempt_least_until(expect(":", "err"))
-        .parse(&mut iter),
-        Err("err".into())
-    );
-    assert_eq!(
-        expect("def", "test_failure")
-        .parse(&mut iter),
-        Ok("def".into())
-    );
-    assert_eq!(
-        expect("ghi", "test_failure_0")
-        .attempt_least_until(expect(":", "test_failure_1"))
-        .parse(&mut iter),
-        Ok((vec!["ghi".into(), "ghi".into()], ":".into()))
-    );
-    assert_eq!(
-        expect("jkl", "test_failure")
-        .parse(&mut iter),
-        Ok("jkl".into())
     );
     assert_eq!(
         expect_end("test_failure")
@@ -911,50 +536,6 @@ fn test_continue_with() {
 }
 
 #[test]
-fn test_scry_then_continue_with() {
-    let mut iter = "abcdefghijkl".chars();
-    assert_eq!(
-        expect("abc", "test_failure_0")
-        .scry_then_continue_with(expect("abcdef", "test_failure_1").discard())
-        .parse(&mut iter),
-        Ok(Ok("abc".into()))
-    );
-    assert_eq!(
-        expect("def", "err")
-        .scry_then_continue_with(expect("jkl", "test_failure").discard())
-        .parse(&mut iter),
-        Ok(Err("err".into()))
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
-#[test]
-fn test_backtrack_then_continue_with() {
-    let mut iter = "abcdefghijkl".chars();
-    assert_eq!(
-        expect("abc", "test_failure_0")
-        .backtrack_then_continue_with(expect("abcdef", "test_failure_1").discard())
-        .parse(&mut iter),
-        Ok(Ok("abc".into()))
-    );
-    assert_eq!(
-        expect("def", "err")
-        .backtrack_then_continue_with(expect("ghijkl", "test_failure").discard())
-        .parse(&mut iter),
-        Ok(Err("err".into()))
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
-#[test]
 fn test_recover_with() {
     let mut iter = "abcdefghi".chars();
     assert_eq!(
@@ -966,50 +547,6 @@ fn test_recover_with() {
     assert_eq!(
         expect("abc", "err")
         .recover_with(expect("ghi", "test_failure").discard())
-        .parse(&mut iter),
-        Ok(Err("err".into()))
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
-#[test]
-fn test_attempt_then_recover_with() {
-    let mut iter = "abcdefghi".chars();
-    assert_eq!(
-        expect("abc", "test_failure_0")
-        .attempt_then_recover_with(expect("def", "test_failure_1").discard())
-        .parse(&mut iter),
-        Ok(Ok("abc".into()))
-    );
-    assert_eq!(
-        expect("abc", "err")
-        .attempt_then_recover_with(expect("defghi", "test_failure").discard())
-        .parse(&mut iter),
-        Ok(Err("err".into()))
-    );
-    assert_eq!(
-        expect_end("test_failure")
-        .parse(&mut iter),
-        Ok(())
-    )
-}
-
-#[test]
-fn test_backtrack_then_recover_with() {
-    let mut iter = "abcdef".chars();
-    assert_eq!(
-        expect("abc", "test_failure_0")
-        .backtrack_then_recover_with(expect("def", "test_failure_1").discard())
-        .parse(&mut iter),
-        Ok(Ok("abc".into()))
-    );
-    assert_eq!(
-        expect("abcghi", "err")
-        .backtrack_then_recover_with(expect("abcdef", "test_failure").discard())
         .parse(&mut iter),
         Ok(Err("err".into()))
     );
@@ -1058,7 +595,8 @@ fn test_recursive_capability() {
     fn expr_parser() -> impl Parser<std::str::Chars<'static>, TestRecExpr, String> {
         recursive!( // required to create recursively defined lambda type
             expect("abc", "expected 'abc'").map(|_| Abc)
-            .attempt_or_compose(
+            .attempt()
+            .or_compose(
                 expect("(", "expected '('")
                 .and_compose(
                     Box::new(indirection::LazyParser::new(expr_parser))

@@ -121,34 +121,10 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
         AndThen::new(self, f)
     }
 
-    fn scry_and_then<U, F>(self, f: F) -> AndThen<Scry<Self, I, T, E>, I, T, E, U, F> where
-        F: Fn(T) -> Result<U, E>
-    {
-        self.scry().and_then(f)
-    }
-
-    fn backtrack_and_then<U, F>(self, f: F) -> AndThen<Backtrack<Self, I, T, E>, I, T, E, U, F> where
-        F: Fn(T) -> Result<U, E>
-    {
-        self.backtrack().and_then(f)
-    }
-
     fn and_compose<U, P>(self, p: P) -> AndCompose<Self, I, T, E, P, U> where
         P: Parser<I, U, E>
     {
         AndCompose::new(self, p)
-    }
-
-    fn scry_and_compose<U, P>(self, p: P) -> AndCompose<Scry<Self, I, T, E>, I, T, E, P, U> where
-        P: Parser<I, U, E>
-    {
-        self.scry().and_compose(p)
-    }
-
-    fn backtrack_and_compose<U, P>(self, p: P) -> AndCompose<Backtrack<Self, I, T, E>, I, T, E, P, U> where
-        P: Parser<I, U, E>
-    {
-        self.backtrack().and_compose(p)
     }
 
     fn and_then_compose<U, P, F>(self, f: F) -> AndThenCompose<Self, I, T, E, P, U, F> where
@@ -156,20 +132,6 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
         F: Fn(T) -> P
     {
         AndThenCompose::new(self, f)
-    }
-
-    fn scry_and_then_compose<U, P, F>(self, f: F) -> AndThenCompose<Scry<Self, I, T, E>, I, T, E, P, U, F> where
-        P: Parser<I, U, E>,
-        F: Fn(T) -> P
-    {
-        self.scry().and_then_compose(f)
-    }
-
-    fn backtrack_and_then_compose<U, P, F>(self, f: F) -> AndThenCompose<Backtrack<Self, I, T, E>, I, T, E, P, U, F> where
-        P: Parser<I, U, E>,
-        F: Fn(T) -> P
-    {
-        self.backtrack().and_then_compose(f)
     }
 
     //* Error mapping
@@ -180,44 +142,16 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
         MapErr::new(self, o)
     }
 
-    // variants:
-    // attempt_or...
-    // backtrack_or...
-
     fn or_else<F, O>(self, o: O) -> OrElse<Self, I, T, E, F, O> where
         O: Fn(E) -> Result<T, F>
     {
         OrElse::new(self, o)
     }
 
-    fn attempt_or_else<F, O>(self, o: O) -> OrElse<Attempt<Self, I, T, E>, I, T, E, F, O> where
-        O: Fn(E) -> Result<T, F>
-    {
-        self.attempt().or_else(o)
-    }
-
-    fn backtrack_or_else<F, O>(self, o: O) -> OrElse<Backtrack<Self, I, T, E>, I, T, E, F, O> where
-        O: Fn(E) -> Result<T, F>
-    {
-        self.backtrack().or_else(o)
-    }
-
     fn or_compose<F, P>(self, p: P) -> OrCompose<Self, I, T, E, P, F> where
         P: Parser<I, T, F>
     {
         OrCompose::new(self, p)
-    }
-
-    fn attempt_or_compose<F, P>(self, p: P) -> OrCompose<Attempt<Self, I, T, E>, I, T, E, P, F> where
-        P: Parser<I, T, F>
-    {
-        self.attempt().or_compose(p)
-    }
-
-    fn backtrack_or_compose<F, P>(self, p: P) -> OrCompose<Backtrack<Self, I, T, E>, I, T, E, P, F> where
-        P: Parser<I, T, F>
-    {
-        self.backtrack().or_compose(p)
     }
 
     fn or_else_compose<F, P, O>(self, o: O) -> OrElseCompose<Self, I, T, E, P, F, O> where
@@ -227,48 +161,20 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
         OrElseCompose::new(self, o)
     }
 
-    fn attempt_or_else_compose<F, P, O>(self, o: O) -> OrElseCompose<Attempt<Self, I, T, E>, I, T, E, P, F, O> where
-        P: Parser<I, T, F>,
-        O: Fn(E) -> P
-    {
-        self.attempt().or_else_compose(o)
-    }
-
-    fn backtrack_or_else_compose<F, P, O>(self, o: O) -> OrElseCompose<Backtrack<Self, I, T, E>, I, T, E, P, F, O> where
-        P: Parser<I, T, F>,
-        O: Fn(E) -> P
-    {
-        self.backtrack().or_else_compose(o)
-    }
-
     //* Vector Combinators
 
     fn many(self) -> Many<Self, I, T, E> {
         Many::new(self)
     }
 
-    fn attempt_many(self) -> Many<Attempt<Self, I, T, E>, I, T, E> {
-        self.attempt().many()
-    }
-
     fn some(self) -> Some<Self, I, T, E> {
         Some::new(self)
-    }
-
-    fn attempt_some(self) -> Some<Attempt<Self, I, T, E>, I, T, E> {
-        self.attempt().some()
     }
 
     fn least_until<U, F, P>(self, end: P) -> Least<Self, I, T, E, P, U, F> where
         P: Parser<I, U, F>
     {
         Least::new(self, end)
-    }
-
-    fn attempt_least_until<U, F, P>(self, end: P) -> Least<Attempt<Self, I, T, E>, I, T, E, P, U, F> where
-        P: Parser<I, U, F>
-    {
-        self.attempt().least_until(end)
     }
 
     fn attempt_most_until<U, F>(self, end: impl Parser<I, U, F>) -> impl Parser<I, (Vec<T>, U), E> {
@@ -283,34 +189,10 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
         Continue::new(self, p)
     }
 
-    fn scry_then_continue_with<F, P>(self, p: P) -> Continue<Scry<Self, I, T, E>, I, T, E, P, F> where
-        P: Parser<I, (), F>
-    {
-        self.scry().continue_with(p)
-    }
-
-    fn backtrack_then_continue_with<F, P>(self, p: P) -> Continue<Backtrack<Self, I, T, E>, I, T, E, P, F> where
-        P: Parser<I, (), F>
-    {
-        self.backtrack().continue_with(p)
-    }
-
     fn recover_with<F, P>(self, p: P) -> Recover<Self, I, T, E, P, F> where
         P: Parser<I, (), F>
     {
         Recover::new(self, p)
-    }
-
-    fn attempt_then_recover_with<F, P>(self, p: P) -> Recover<Attempt<Self, I, T, E>, I, T, E, P, F> where
-        P: Parser<I, (), F>
-    {
-        self.attempt().recover_with(p)
-    }
-
-    fn backtrack_then_recover_with<F, P>(self, p: P) -> Recover<Backtrack<Self, I, T, E>, I, T, E, P, F> where
-        P: Parser<I, (), F>
-    {
-        self.backtrack().recover_with(p)
     }
 
     fn absorb_err<U>(self) -> AbsorbErr<Self, I, T, E, U> where
