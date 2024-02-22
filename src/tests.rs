@@ -605,19 +605,19 @@ enum TestRecExpr {
 fn test_recursive_capability() {
     use TestRecExpr::*;
     fn expr_parser() -> impl Parser<std::str::Chars<'static>, TestRecExpr, String> {
-        recursive!( // required to create recursively defined lambda type
-            expect("abc", "expected 'abc'").map(|_| Abc)
-            .attempt()
-            .or_compose(
-                expect("(", "expected '('")
-                .and_compose(
-                    Box::new(indirection::LazyParser::new(expr_parser))
-                    .most_until(
-                        expect(")", "expected ')'")
-                        .attempt()
-                    )
-                    .map(|(exprs, _)| Exprs(exprs))
+        expect("abc", "expected 'abc'").map(|_| Abc)
+        .attempt()
+        .or_compose(
+            expect("(", "expected '('")
+            .and_compose(
+                recursive!( // required to create recursively defined lambda type
+                    indirection::LazyParser::new(expr_parser)
                 )
+                .most_until(
+                    expect(")", "expected ')'")
+                    .attempt()
+                )
+                .map(|(exprs, _)| Exprs(exprs))
             )
         )
     }
