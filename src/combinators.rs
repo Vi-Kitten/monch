@@ -1,97 +1,92 @@
-use std::cell::OnceCell;
+use std::{cell::OnceCell, marker::PhantomData};
 use super::*;
 
 #[derive(Clone)]
-pub struct Wrap<T> where
+pub struct Wrap<T, E> where
     T: Clone
 {
     val: T,
+    _e: PhantomData<E>,
 }
 
-impl<T> Wrap<T> where
+impl<T, E> Wrap<T, E> where
     T: Clone
 {
-    pub fn new(val: T) -> Wrap<T> {
+    pub fn new(val: T) -> Wrap<T, E> {
         Wrap{
             val,
+            _e: PhantomData,
         }
     }
 }
 
-impl<I, T, E> Parser<I, T, E> for Wrap<T> where
+impl<I, T, E> Parser<I> for Wrap<T, E> where
     I: Iterator + Clone,
     T: Clone
 {
+    type Value = T;
+    type Error = E;
+    
     fn parse(&self, _iter: &mut I) -> Result<T, E> {
         Ok(self.val.clone())
     }
 }
 
 #[derive(Clone)]
-pub struct Fail<E> where
+pub struct Fail<T, E> where
     E: Clone
 {
     err: E,
+    _t: PhantomData<T>,
 }
 
-impl<E> Fail<E> where
+impl<T, E> Fail<T, E> where
     E: Clone
 {
-    pub fn new(err: E) -> Fail<E> {
+    pub fn new(err: E) -> Fail<T, E> {
         Fail{
             err,
+            _t: PhantomData,
         }
     }
 }
 
-impl<I, T, E> Parser<I, T, E> for Fail<E> where
+impl<I, T, E> Parser<I> for Fail<T, E> where
     I: Iterator + Clone,
     E: Clone
 {
+    type Value = T;
+    type Error = E;
+
     fn parse(&self, _iter: &mut I) -> Result<T, E> {
         Err(self.err.clone())
     }
 }
 
 #[derive(Clone)]
-pub struct Lense<P, I, T, E, J, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    J: Iterator + Clone,
-    F: Fn(&mut J) -> &mut I
-{
+pub struct Lense<P, F> {
     parser: P,
     lense: F,
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
-    _j: std::marker::PhantomData<J>,
 }
 
-impl<P, I, T, E, J, F> Lense<P, I, T, E, J, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    J: Iterator + Clone,
-    F: Fn(&mut J) -> &mut I
-{
-    pub fn new(parser: P, lense: F) -> Lense<P, I, T, E, J, F> {
+impl<P, F> Lense<P, F> {
+    pub fn new(parser: P, lense: F) -> Lense<P, F> {
         Lense {
             parser,
             lense,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
-            _j: std::marker::PhantomData,
         }
     }
 }
 
-impl<P, I, T, E, J, F> Parser<J, T, E> for Lense<P, I, T, E, J, F> where
+impl<P, I, T, E, J, F> Parser<J> for Lense<P, F> where
     I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
+    P: SizedParser<I, Value=T, Error=E>,
     J: Iterator + Clone,
     F: Fn(&mut J) -> &mut I
 {
+    type Value = T;
+    type Error = E;
+
     fn parse(&self, jter: &mut J) -> Result<T, E> {        
         let mut iter: &mut I = (self.lense)(jter);
         self.parser.parse(&mut iter)
@@ -101,102 +96,75 @@ impl<P, I, T, E, J, F> Parser<J, T, E> for Lense<P, I, T, E, J, F> where
 // Backtracking
 
 #[derive(Clone)]
-pub struct Attempt<P, I, T, E> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>
-{
+pub struct Attempt<P> {
     parser: P,
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
 }
 
-impl<P, I, T, E> Attempt<P, I, T, E> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>
-{
-    pub fn new(parser: P) -> Attempt<P, I, T, E> {
+impl<P> Attempt<P> {
+    pub fn new(parser: P) -> Attempt<P> {
         Attempt{
             parser,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
         }
     }
 }
 
-impl<P, I, T, E> Parser<I, T, E> for Attempt<P, I, T, E> where
+impl<P, I, T, E> Parser<I> for Attempt<P> where
     I: Iterator + Clone,
-    P: SizedParser<I, T, E>
+    P: SizedParser<I, Value=T, Error=E>
 {
+    type Value = T;
+    type Error = E;
+    
     fn parse(&self, iter: &mut I) -> Result<T, E> {
         self.parser.attempt_parse(iter)
     }
 }
 
 #[derive(Clone)]
-pub struct Scry<P, I, T, E> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>
-{
+pub struct Scry<P> {
     parser: P,
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
 }
 
-impl<P, I, T, E> Scry<P, I, T, E> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>
-{
-    pub fn new(parser: P) -> Scry<P, I, T, E> {
+impl<P> Scry<P> {
+    pub fn new(parser: P) -> Scry<P> {
         Scry{
             parser,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
         }
     }
 }
 
-impl<P, I, T, E> Parser<I, T, E> for Scry<P, I, T, E> where
+impl<P, I, T, E> Parser<I> for Scry<P> where
     I: Iterator + Clone,
-    P: SizedParser<I, T, E>
+    P: SizedParser<I, Value=T, Error=E>
 {
+    type Value = T;
+    type Error = E;
+    
     fn parse(&self, iter: &mut I) -> Result<T, E> {
         self.parser.scry_parse(iter)
     }
 }
 
 #[derive(Clone)]
-pub struct Backtrack<P, I, T, E> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>
-{
+pub struct Backtrack<P> {
     parser: P,
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
 }
 
-impl<P, I, T, E> Backtrack<P, I, T, E> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>
-{
-    pub fn new(parser: P) -> Backtrack<P, I, T, E> {
+impl<P> Backtrack<P> {
+    pub fn new(parser: P) -> Backtrack<P> {
         Backtrack{
             parser,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
         }
     }
 }
 
-impl<P, I, T, E> Parser<I, T, E> for Backtrack<P, I, T, E> where
+impl<P, I, T, E> Parser<I> for Backtrack<P> where
     I: Iterator + Clone,
-    P: SizedParser<I, T, E>
+    P: SizedParser<I, Value=T, Error=E>
 {
+    type Value = T;
+    type Error = E;
+    
     fn parse(&self, iter: &mut I) -> Result<T, E> {
         self.parser.backtrack_parse(iter)
     }
@@ -205,120 +173,85 @@ impl<P, I, T, E> Parser<I, T, E> for Backtrack<P, I, T, E> where
 // Value mapping
 
 #[derive(Clone)]
-pub struct Map<P, I, T, E, U, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    F: Fn(T) -> U
-{
+pub struct Map<P, F> {
     parser: P, 
     inner_map: F,
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
 }
 
-impl<P, I, T, E, U, F> Map<P, I, T, E, U, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    F: Fn(T) -> U
-{
-    pub fn new(parser: P, inner_map: F) -> Map<P, I, T, E, U, F> {
+impl<P, F> Map<P, F> {
+    pub fn new(parser: P, inner_map: F) -> Map<P, F> {
         Map{
             parser,
             inner_map,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
         }
     }
 }
 
-impl<P, I, T, E, U, F> Parser<I, U, E> for Map<P, I, T, E, U, F> where
+impl<P, I, T, E, U, F> Parser<I> for Map<P, F> where
     I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
+    P: SizedParser<I, Value=T, Error=E>,
     F: Fn(T) -> U
 {
+    type Value = U;
+    type Error = E;
+    
     fn parse(&self, iter: &mut I) -> Result<U, E> {
         self.parser.parse(iter).map(&self.inner_map)
     }
 }
 
 #[derive(Clone)]
-pub struct AndThen<P, I, T, E, U, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    F: Fn(T) -> Result<U, E>
-{
+pub struct AndThen<P, F> where {
     parser: P, 
     inner_bind: F,
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
 }
 
-impl<P, I, T, E, U, F> AndThen<P, I, T, E, U, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    F: Fn(T) -> Result<U, E>
-{
-    pub fn new(parser: P, inner_bind: F) -> AndThen<P, I, T, E, U, F> {
+impl<P, F> AndThen<P, F> {
+    pub fn new(parser: P, inner_bind: F) -> AndThen<P, F> {
         AndThen{
             parser,
             inner_bind,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
         }
     }
 }
 
-impl<P, I, T, E, U, F> Parser<I, U, E> for AndThen<P, I, T, E, U, F> where
+impl<P, I, T, E, U, F> Parser<I> for AndThen<P, F> where
     I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
+    P: SizedParser<I, Value=T, Error=E>,
     F: Fn(T) -> Result<U, E>
 {
+    type Value = U;
+    type Error = E;
+    
     fn parse(&self, iter: &mut I) -> Result<U, E> {
         self.parser.parse(iter).and_then(&self.inner_bind)
     }
 }
 
 #[derive(Clone)]
-pub struct AndCompose<P, I, T, E, Q, U> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, U, E>
-{
+pub struct AndCompose<P, Q> {
     parser: P, 
     other: Q,
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
-    _u: std::marker::PhantomData<U>,
 }
 
-impl<P, I, T, E, Q, U> AndCompose<P, I, T, E, Q, U> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, U, E>
-{
-    pub fn new(parser: P, other: Q) -> AndCompose<P, I, T, E, Q, U> {
+impl<P, Q> AndCompose<P, Q> {
+    pub fn new(parser: P, other: Q) -> AndCompose<P, Q> {
         AndCompose{
             parser,
             other,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
-            _u: std::marker::PhantomData,
         }
     }
 }
 
-impl<P, I, T, E, Q, U> Parser<I, U, E> for AndCompose<P, I, T, E, Q, U> where
+impl<P, I, E, Q> Parser<I> for AndCompose<P, Q> where
     I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, U, E>
+    P: SizedParser<I, Error=E>,
+    Q: SizedParser<I, Error=E>
 {
-    fn parse(&self, iter: &mut I) -> Result<U, E> {
+    type Value = Q::Value;
+    type Error = E;
+    
+    fn parse(&self, iter: &mut I) -> Result<Q::Value, E> {
         self.parser.parse(iter).and_then(|_|
             self.other.parse(iter)
         )
@@ -326,89 +259,28 @@ impl<P, I, T, E, Q, U> Parser<I, U, E> for AndCompose<P, I, T, E, Q, U> where
 }
 
 #[derive(Clone)]
-pub struct AndThenCompose<P, I, T, E, Q, U, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, U, E>,
-    F: Fn(T) -> Q
-{
-    parser: P, 
-    bind: F,
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
-    _q: std::marker::PhantomData<Q>,
-    _u: std::marker::PhantomData<U>,
-}
-
-impl<P, I, T, E, Q, U, F> AndThenCompose<P, I, T, E, Q, U, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, U, E>,
-    F: Fn(T) -> Q
-{
-    pub fn new(parser: P, bind: F) -> AndThenCompose<P, I, T, E, Q, U, F> {
-        AndThenCompose{
-            parser,
-            bind,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
-            _q: std::marker::PhantomData,
-            _u: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<P, I, T, E, Q, U, F> Parser<I, U, E> for AndThenCompose<P, I, T, E, Q, U, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, U, E>,
-    F: Fn(T) -> Q
-{
-    fn parse(&self, iter: &mut I) -> Result<U, E> {
-        (self.bind)(
-            self.parser.parse(iter)?
-        ).parse(iter)
-    }
-}
-
-#[derive(Clone)]
-pub struct PreserveAndCompose<P, I, T, E, Q, U> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, U, E>
-{
+pub struct PreserveAndCompose<P, Q> {
     parser: P, 
     other: Q,
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
-    _u: std::marker::PhantomData<U>,
 }
 
-impl<P, I, T, E, Q, U> PreserveAndCompose<P, I, T, E, Q, U> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, U, E>
-{
-    pub fn new(parser: P, other: Q) -> PreserveAndCompose<P, I, T, E, Q, U> {
+impl<P, Q> PreserveAndCompose<P, Q> where {
+    pub fn new(parser: P, other: Q) -> PreserveAndCompose<P, Q> {
         PreserveAndCompose{
             parser,
             other,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
-            _u: std::marker::PhantomData,
         }
     }
 }
 
-impl<P, I, T, E, Q, U> Parser<I, T, E> for PreserveAndCompose<P, I, T, E, Q, U> where
+impl<P, I, T, E, Q> Parser<I> for PreserveAndCompose<P, Q> where
     I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, U, E>
+    P: SizedParser<I, Value=T, Error=E>,
+    Q: SizedParser<I, Error=E>
 {
+    type Value = T;
+    type Error = E;
+    
     fn parse(&self, iter: &mut I) -> Result<T, E> {
         self.parser.parse(iter).and_then(|t|
             self.other.parse(iter).map(|_| t)
@@ -416,123 +288,119 @@ impl<P, I, T, E, Q, U> Parser<I, T, E> for PreserveAndCompose<P, I, T, E, Q, U> 
     }
 }
 
-// Error mapping
-
 #[derive(Clone)]
-pub struct MapErr<P, I, T, E, F, O> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    O: Fn(E) -> F
-{
+pub struct AndThenCompose<P, F> {
     parser: P, 
-    inner_map: O,
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
+    bind: F,
 }
 
-impl<P, I, T, E, F, O> MapErr<P, I, T, E, F, O> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    O: Fn(E) -> F
-{
-    pub fn new(parser: P, inner_map: O) -> MapErr<P, I, T, E, F, O> {
-        MapErr {
+impl<P, F> AndThenCompose<P, F> {
+    pub fn new(parser: P, bind: F) -> AndThenCompose<P, F> {
+        AndThenCompose{
             parser,
-            inner_map,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
+            bind,
         }
     }
 }
 
-impl<P, I, T, E, F, O> Parser<I, T, F> for MapErr<P, I, T, E, F, O> where
+impl<P, I, T, E, Q, F> Parser<I> for AndThenCompose<P, F> where
     I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
+    P: SizedParser<I, Value=T, Error=E>,
+    Q: SizedParser<I, Error=E>,
+    F: Fn(T) -> Q
+{
+    type Value = Q::Value;
+    type Error = E;
+    
+    fn parse(&self, iter: &mut I) -> Result<Q::Value, E> {
+        (self.bind)(
+            self.parser.parse(iter)?
+        ).parse(iter)
+    }
+}
+
+// Error mapping
+
+#[derive(Clone)]
+pub struct MapErr<P, O> {
+    parser: P, 
+    inner_map: O,
+}
+
+impl<P, O> MapErr<P, O> {
+    pub fn new(parser: P, inner_map: O) -> MapErr<P, O> {
+        MapErr {
+            parser,
+            inner_map,
+        }
+    }
+}
+
+impl<P, I, T, E, F, O> Parser<I> for MapErr<P, O> where
+    I: Iterator + Clone,
+    P: SizedParser<I, Value=T, Error=E>,
     O: Fn(E) -> F
 {
+    type Value = T;
+    type Error = F;
+    
     fn parse(&self, iter: &mut I) -> Result<T, F> {
         self.parser.parse(iter).map_err(&self.inner_map)
     }
 }
 
 #[derive(Clone)]
-pub struct OrElse<P, I, T, E, F, O> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    O: Fn(E) -> Result<T, F>
-{
+pub struct OrElse<P, O> {
     parser: P, 
     inner_bind: O,
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
 }
 
-impl<P, I, T, E, F, O> OrElse<P, I, T, E, F, O> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    O: Fn(E) -> Result<T, F>
-{
-    pub fn new(parser: P, inner_bind: O) -> OrElse<P, I, T, E, F, O> {
+impl<P, O> OrElse<P, O> {
+    pub fn new(parser: P, inner_bind: O) -> OrElse<P, O> {
         OrElse {
             parser,
             inner_bind,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
         }
     }
 }
 
-impl<P, I, T, E, F, O> Parser<I, T, F> for OrElse<P, I, T, E, F, O> where
+impl<P, I, T, E, F, O> Parser<I> for OrElse<P, O> where
     I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
+    P: SizedParser<I, Value=T, Error=E>,
     O: Fn(E) -> Result<T, F>
 {
+    type Value = T;
+    type Error = F;
+    
     fn parse(&self, iter: &mut I) -> Result<T, F> {
         self.parser.parse(iter).or_else(&self.inner_bind)
     }
 }
 
 #[derive(Clone)]
-pub struct OrCompose<P, I, T, E, Q, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, T, F>
-{
+pub struct OrCompose<P, Q> {
     parser: P, 
     other: Q,
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
-    _f: std::marker::PhantomData<F>,
 }
 
-impl<P, I, T, E, Q, F> OrCompose<P, I, T, E, Q, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, T, F>
-{
-    pub fn new(parser: P, other: Q) -> OrCompose<P, I, T, E, Q, F> {
+impl<P, Q> OrCompose<P, Q> {
+    pub fn new(parser: P, other: Q) -> OrCompose<P, Q> {
         OrCompose {
             parser,
             other,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
-            _f: std::marker::PhantomData,
         }
     }
 }
 
-impl<P, I, T, E, Q, F> Parser<I, T, F> for OrCompose<P, I, T, E, Q, F> where
+impl<P, I, T, E, Q> Parser<I> for OrCompose<P, Q> where
     I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, T, F>
+    P: SizedParser<I, Value=T, Error=E>,
+    Q: SizedParser<I, Value=T>
 {
-    fn parse(&self, iter: &mut I) -> Result<T, F> {
+    type Value = T;
+    type Error = Q::Error;
+    
+    fn parse(&self, iter: &mut I) -> Result<T, Q::Error> {
         self.parser.parse(iter).or_else(|_|
             self.other.parse(iter)
         )
@@ -540,45 +408,30 @@ impl<P, I, T, E, Q, F> Parser<I, T, F> for OrCompose<P, I, T, E, Q, F> where
 }
 
 #[derive(Clone)]
-pub struct OrElseCompose<P, I, T, E, Q, F, O> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, T, F>,
-    O: Fn(E) -> Q
-{
+pub struct OrElseCompose<P, O> {
     parser: P, 
     bind: O,
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
-    _f: std::marker::PhantomData<F>,
 }
 
-impl<P, I, T, E, Q, F, O> OrElseCompose<P, I, T, E, Q, F, O> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, T, F>,
-    O: Fn(E) -> Q
-{
-    pub fn new(parser: P, bind: O) -> OrElseCompose<P, I, T, E, Q, F, O> {
+impl<P, O> OrElseCompose<P, O> {
+    pub fn new(parser: P, bind: O) -> OrElseCompose<P, O> {
         OrElseCompose {
             parser,
             bind,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
-            _f: std::marker::PhantomData,
         }
     }
 }
 
-impl<P, I, T, E, Q, F, O> Parser<I, T, F> for OrElseCompose<P, I, T, E, Q, F, O> where
+impl<P, I, T, E, Q, O> Parser<I> for OrElseCompose<P, O> where
     I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, T, F>,
+    P: SizedParser<I, Value=T, Error=E>,
+    Q: SizedParser<I, Value=T>,
     O: Fn(E) -> Q
 {
-    fn parse(&self, iter: &mut I) -> Result<T, F> {
+    type Value = T;
+    type Error = Q::Error;
+    
+    fn parse(&self, iter: &mut I) -> Result<T, Q::Error> {
         self.parser.parse(iter).or_else(|e|
             (self.bind)(e).parse(iter)
         )
@@ -588,34 +441,27 @@ impl<P, I, T, E, Q, F, O> Parser<I, T, F> for OrElseCompose<P, I, T, E, Q, F, O>
 // Vector Combinators
 
 #[derive(Clone)]
-pub struct Many<P, I, T, E> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>
-{
-    parser: P, 
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
+pub struct Many<P, F> {
+    parser: P,
+    _f: PhantomData<F>,
 }
 
-impl<P, I, T, E> Many<P, I, T, E> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>
-{
-    pub fn new(parser: P) -> Many<P, I, T, E> {
+impl<P, F> Many<P, F> {
+    pub fn new(parser: P) -> Many<P, F> {
         Many {
             parser,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
+            _f: PhantomData,
         }
     }
 }
 
-impl<P, I, T, E, F> Parser<I, Vec<T>, F> for Many<P, I, T, E> where
+impl<P, I, T, E, F> Parser<I> for Many<P, F> where
     I: Iterator + Clone,
-    P: SizedParser<I, T, E>
+    P: SizedParser<I, Value=T, Error=E>
 {
+    type Value = Vec<T>;
+    type Error = F;
+    
     fn parse(&self, iter: &mut I) -> Result<Vec<T>, F> {
         let mut values = vec![];
         while let Ok(val) = self.parser.parse(iter) {
@@ -626,34 +472,25 @@ impl<P, I, T, E, F> Parser<I, Vec<T>, F> for Many<P, I, T, E> where
 }
 
 #[derive(Clone)]
-pub struct Some<P, I, T, E> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>
-{
-    parser: P, 
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
+pub struct Some<P> {
+    parser: P,
 }
 
-impl<P, I, T, E> Some<P, I, T, E> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>
-{
-    pub fn new(parser: P) -> Some<P, I, T, E> {
+impl<P> Some<P> {
+    pub fn new(parser: P) -> Some<P> {
         Some {
-            parser, 
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
+            parser,
         }
     }
 }
 
-impl<P, I, T, E> Parser<I, Vec<T>, E> for Some<P, I, T, E> where
+impl<P, I, T, E> Parser<I> for Some<P> where
     I: Iterator + Clone,
-    P: SizedParser<I, T, E>
+    P: SizedParser<I, Value=T, Error=E>
 {
+    type Value = Vec<T>;
+    type Error = E;
+    
     fn parse(&self, iter: &mut I) -> Result<Vec<T>, E> {
         let mut values = vec![self.parser.parse(iter)?];
         while let Ok(val) = self.parser.parse(iter) {
@@ -664,44 +501,29 @@ impl<P, I, T, E> Parser<I, Vec<T>, E> for Some<P, I, T, E> where
 }
 
 #[derive(Clone)]
-pub struct Least<P, I, T, E, Q, U, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, U, F>
-{
+pub struct Least<P, Q> {
     parser: P,
     until: Q,
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
-    _u: std::marker::PhantomData<U>,
-    _f: std::marker::PhantomData<F>,
 }
 
-impl<P, I, T, E, Q, U, F> Least<P, I, T, E, Q, U, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, U, F>
-{
-    pub fn new(parser: P, until: Q) -> Least<P, I, T, E, Q, U, F> {
+impl<P, Q> Least<P, Q> {
+    pub fn new(parser: P, until: Q) -> Least<P, Q> {
         Least {
             parser,
             until,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
-            _u: std::marker::PhantomData,
-            _f: std::marker::PhantomData,
         }
     }
 }
 
-impl<P, I, T, E, Q, U, F> Parser<I, (Vec<T>, U), F> for Least<P, I, T, E, Q, U, F> where
+impl<P, I, T, E, Q> Parser<I> for Least<P, Q> where
     I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, U, F>
+    P: SizedParser<I, Value=T, Error=E>,
+    Q: SizedParser<I>
 {
-    fn parse(&self, iter: &mut I) -> Result<(Vec<T>, U), F> {
+    type Value = (Vec<T>, Q::Value);
+    type Error = Q::Error;
+    
+    fn parse(&self, iter: &mut I) -> Result<(Vec<T>, Q::Value), Q::Error> {
         let mut values = vec![];
         let u = loop {
             match self.until.parse(iter) {
@@ -717,44 +539,29 @@ impl<P, I, T, E, Q, U, F> Parser<I, (Vec<T>, U), F> for Least<P, I, T, E, Q, U, 
 }
 
 #[derive(Clone)]
-pub struct Most<P, I, T, E, Q, U, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, U, F>
-{
+pub struct Most<P, Q> {
     parser: P,
     until: Q,
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
-    _u: std::marker::PhantomData<U>,
-    _f: std::marker::PhantomData<F>,
 }
 
-impl<P, I, T, E, Q, U, F> Most<P, I, T, E, Q, U, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, U, F>
-{
-    pub fn new(parser: P, until: Q) -> Most<P, I, T, E, Q, U, F> {
+impl<P, Q> Most<P, Q> {
+    pub fn new(parser: P, until: Q) -> Most<P, Q> {
         Most {
             parser,
             until,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
-            _u: std::marker::PhantomData,
-            _f: std::marker::PhantomData,
         }
     }
 }
 
-impl<P, I, T, E, Q, U, F> Parser<I, (Vec<T>, U), E> for Most<P, I, T, E, Q, U, F> where
+impl<P, I, T, E, Q> Parser<I> for Most<P, Q> where
     I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, U, F>
+    P: SizedParser<I, Value=T, Error=E>,
+    Q: SizedParser<I>
 {
-    fn parse(&self, iter: &mut I) -> Result<(Vec<T>, U), E> {
+    type Value = (Vec<T>, Q::Value);
+    type Error = E;
+    
+    fn parse(&self, iter: &mut I) -> Result<(Vec<T>, Q::Value), E> {
         let mut stack = vec![iter.clone()];
         let mut values = vec![];
         let e = loop {
@@ -788,42 +595,29 @@ impl<P, I, T, E, Q, U, F> Parser<I, (Vec<T>, U), E> for Most<P, I, T, E, Q, U, F
 // Error recovery
 
 #[derive(Clone)]
-pub struct Continue<P, I, T, E, Q, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, (), F>
-{
+pub struct Continue<P, Q> {
     parser: P,
     recover: Q,
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
-    _f: std::marker::PhantomData<F>,
 }
 
-impl<P, I, T, E, Q, F> Continue<P, I, T, E, Q, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, (), F>
-{
-    pub fn new(parser: P, recover: Q) -> Continue<P, I, T, E, Q, F> {
+impl<P, Q> Continue<P, Q> {
+    pub fn new(parser: P, recover: Q) -> Continue<P, Q> {
         Continue {
             parser,
             recover,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
-            _f: std::marker::PhantomData,
         }
     }
 }
 
-impl<P, I, T, E, Q, F> Parser<I, Result<T, E>, F> for Continue<P, I, T, E, Q, F> where
+impl<P, I, T, E, Q> Parser<I> for Continue<P, Q> where
     I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, (), F>
+    P: SizedParser<I, Value=T, Error=E>,
+    Q: SizedParser<I, Value=()>
 {
-    fn parse(&self, iter: &mut I) -> Result<Result<T, E>, F> {
+    type Value = Result<T, E>;
+    type Error = Q::Error;
+    
+    fn parse(&self, iter: &mut I) -> Result<Result<T, E>, Q::Error> {
         let res = self.parser.parse(iter);
         self.recover.parse(iter)?;
         Ok(res)
@@ -831,42 +625,29 @@ impl<P, I, T, E, Q, F> Parser<I, Result<T, E>, F> for Continue<P, I, T, E, Q, F>
 }
 
 #[derive(Clone)]
-pub struct Recover<P, I, T, E, Q, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, (), F>
-{
+pub struct Recover<P, Q> {
     parser: P,
     recover: Q,
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
-    _f: std::marker::PhantomData<F>,
 }
 
-impl<P, I, T, E, Q, F> Recover<P, I, T, E, Q, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, (), F>
-{
-    pub fn new(parser: P, recover: Q) -> Recover<P, I, T, E, Q, F> {
+impl<P, Q> Recover<P, Q> {
+    pub fn new(parser: P, recover: Q) -> Recover<P, Q> {
         Recover {
             parser,
             recover,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
-            _f: std::marker::PhantomData,
         }
     }
 }
 
-impl<P, I, T, E, Q, F> Parser<I, Result<T, E>, F> for Recover<P, I, T, E, Q, F> where
+impl<P, I, T, E, Q> Parser<I> for Recover<P, Q> where
     I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    Q: SizedParser<I, (), F>
+    P: SizedParser<I, Value=T, Error=E>,
+    Q: SizedParser<I, Value=()>
 {
-    fn parse(&self, iter: &mut I) -> Result<Result<T, E>, F> {
+    type Value = Result<T, E>;
+    type Error = Q::Error;
+    
+    fn parse(&self, iter: &mut I) -> Result<Result<T, E>, Q::Error> {
         match self.parser.parse(iter) {
             Ok(res) => Ok(Ok(res)),
             Err(e) => self.recover.parse(iter).map(|_| Err(e)),
@@ -875,75 +656,52 @@ impl<P, I, T, E, Q, F> Parser<I, Result<T, E>, F> for Recover<P, I, T, E, Q, F> 
 }
 
 #[derive(Clone)]
-pub struct AbsorbErr<P, I, T, E, U> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    T: Into<Result<U, E>>
-{
+pub struct AbsorbErr<P> {
     parser: P,
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
-    _u: std::marker::PhantomData<U>,
 }
 
-impl<P, I, T, E, U> AbsorbErr<P, I, T, E, U> where
-    I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    T: Into<Result<U, E>>
-{
-    pub fn new(parser: P) -> AbsorbErr<P, I, T, E, U> {
+impl<P> AbsorbErr<P> {
+    pub fn new(parser: P) -> AbsorbErr<P> {
         AbsorbErr {
             parser,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
-            _u: std::marker::PhantomData,
         }
     }
 }
 
-impl<P, I, T, E, U> Parser<I, U, E> for AbsorbErr<P, I, T, E, U> where
+impl<P, I, E, U> Parser<I> for AbsorbErr<P> where
     I: Iterator + Clone,
-    P: SizedParser<I, T, E>,
-    T: Into<Result<U, E>>
+    P: SizedParser<I, Value=Result<U, E>, Error=E>
 {
+    type Value = U;
+    type Error = E;
+    
     fn parse(&self, iter: &mut I) -> Result<U, E> {
-        self.parser.parse(iter)?.into()
+        self.parser.parse(iter)?
     }
 }
 
 // Indirection
 
 #[derive(Clone)]
-pub struct RefParser<'p, P, I, T, E> where
-    I: Iterator + Clone,
-    P: Parser<I, T, E>
-{
+pub struct RefParser<'p, P> {
     parser: &'p P,
-    _i: std::marker::PhantomData<I>,
-    _t: std::marker::PhantomData<T>,
-    _e: std::marker::PhantomData<E>,
 }
 
-impl<'p, P, I, T, E> RefParser<'p, P, I, T, E> where
-    I: Iterator + Clone,
-    P: Parser<I, T, E>
-{
-    pub fn new(parser: &'p P) -> RefParser<'p, P, I, T, E> {
+impl<'p, P> RefParser<'p, P> {
+    pub fn new(parser: &'p P) -> RefParser<'p, P> {
         RefParser {
             parser: parser,
-            _i: std::marker::PhantomData,
-            _t: std::marker::PhantomData,
-            _e: std::marker::PhantomData,
         }
     }
 }
 
-impl<'p, P, I, T, E> Parser<I, T, E> for RefParser<'p, P, I, T, E> where
+impl<'p, P, I, T, E> Parser<I> for RefParser<'p, P> where
     I: Iterator + Clone,
-    P: Parser<I, T, E>
+    P: Parser<I, Value=T, Error=E>
 {
+    type Value = T;
+    type Error = E;
+    
     fn parse(&self, iter: &mut I) -> Result<T, E> {
         self.parser.parse(iter)
     }
@@ -953,7 +711,7 @@ impl<'p, P, I, T, E> Parser<I, T, E> for RefParser<'p, P, I, T, E> where
 pub struct ForwardDef<'p, I, T, E> where
     I: Iterator + Clone
 {
-    parser: OnceCell<&'p dyn Parser<I, T, E>>
+    parser: OnceCell<&'p dyn Parser<I, Value=T, Error=E>>
 }
 
 impl<'p, I, T, E> ForwardDef<'p, I, T, E> where
@@ -965,15 +723,18 @@ impl<'p, I, T, E> ForwardDef<'p, I, T, E> where
         }
     }
 
-    pub fn define(&self, parser: &'p impl Parser<I, T, E>) -> Result<(), &'p dyn Parser<I, T, E>> where
+    pub fn define(&self, parser: &'p impl Parser<I, Value=T, Error=E>) -> Result<(), &'p dyn Parser<I, Value=T, Error=E>> where
     {
         self.parser.set(parser)
     }
 }
 
-impl<'p, I, T, E> Parser<I, T, E> for ForwardDef<'p, I, T, E> where
+impl<'p, I, T, E> Parser<I> for ForwardDef<'p, I, T, E> where
     I: Iterator + Clone
 {
+    type Value = T;
+    type Error = E;
+    
     fn parse(&self, iter: &mut I) -> Result<T, E> {
         self.parser.get().unwrap().parse(iter)
     }

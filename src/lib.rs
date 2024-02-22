@@ -17,24 +17,27 @@ pub enum ParseError<Msg = String> {
     Bundle(Vec<ParseError>)
 }
 
-pub fn wrap<T>(t: T) -> Wrap<T> where
+pub fn wrap<T, E>(t: T) -> Wrap<T, E> where
     T: Clone
 {
     Wrap::new(t)
 }
 
-pub fn fail<E>(e: E) -> Fail<E> where
+pub fn fail<T, E>(e: E) -> Fail<T, E> where
     E: Clone
 {
     Fail::new(e)
 }
 
-pub trait Parser<I, T, E = ParseError> where
+pub trait Parser<I> where
     I: Iterator + Clone
 {
-    fn parse(&self, iter: &mut I) -> Result<T, E>;
+    type Value;
+    type Error;
 
-    fn attempt_parse(&self, iter: &mut I) -> Result<T, E> {
+    fn parse(&self, iter: &mut I) -> Result<Self::Value, Self::Error>;
+
+    fn attempt_parse(&self, iter: &mut I) -> Result<Self::Value, Self::Error> {
         let backup = iter.clone();
         self.parse(iter).map_err(|e| {
             *iter = backup;
@@ -42,35 +45,35 @@ pub trait Parser<I, T, E = ParseError> where
         })
     }
 
-    fn scry_parse(&self, iter: &mut I) -> Result<T, E> {
+    fn scry_parse(&self, iter: &mut I) -> Result<Self::Value, Self::Error> {
         let backup = iter.clone();
         let val = self.parse(iter)?;
         *iter = backup;
         Ok(val)
     }
 
-    fn backtrack_parse(&self, iter: &mut I) -> Result<T, E> {
+    fn backtrack_parse(&self, iter: &mut I) -> Result<Self::Value, Self::Error> {
         self.parse(&mut iter.clone())
     }
 }
 
-impl<P, I, T, E> SizedParser<I, T, E> for P where
+impl<P, I> SizedParser<I> for P where
     I: Iterator + Clone,
-    P: Sized + Parser<I, T, E> {}
+    P: Sized + Parser<I> {}
 
-pub trait SizedParser<I, T, E = ParseError>: Parser<I, T, E> where
+pub trait SizedParser<I>: Parser<I> where
     I: Iterator + Clone,
     Self: Sized
 {
-    fn reference<'p>(&'p self) -> RefParser<'p, Self, I, T, E> {
+    fn reference<'p>(&'p self) -> RefParser<'_, Self> {
         RefParser::new(self)
     }
 
-    fn discard(self) -> Map<Self, I, T, E, (), impl Fn(T)> {
+    fn discard(self) -> Map<Self, impl Fn(Self::Value) -> ()> {
         self.map(|_| ())
     }
 
-    fn lense<J, F>(self, f: F) -> Lense<Self, I, T, E, J, F> where
+    fn lense<J, F>(self, f: F) -> Lense<Self, F> where
         J: Iterator + Clone,
         F: Fn(&mut J) -> &mut I
     {
@@ -80,120 +83,120 @@ pub trait SizedParser<I, T, E = ParseError>: Parser<I, T, E> where
     // Backtracking
 
     // backtrack on failure
-    fn attempt(self) -> Attempt<Self, I, T, E> {
+    fn attempt(self) -> Attempt<Self> {
         Attempt::new(self)
     }
 
     // backtrack on success
-    fn scry(self) -> Scry<Self, I, T, E>  {
+    fn scry(self) -> Scry<Self> {
         Scry::new(self)
     }
 
     // always backtrack
-    fn backtrack(self) -> Backtrack<Self, I, T, E>  {
+    fn backtrack(self) -> Backtrack<Self> {
         Backtrack::new(self)
     }
 
     // Value mapping
 
-    fn map<U, F>(self, f: F) -> Map<Self, I, T, E, U, F> where
-        F: Fn(T) -> U
+    fn map<U, F>(self, f: F) -> Map<Self, F> where
+        F: Fn(Self::Value) -> U
     {
         Map::new(self, f)
     }
 
-    fn and_then<U, F>(self, f: F) -> AndThen<Self, I, T, E, U, F> where
-        F: Fn(T) -> Result<U, E>
+    fn and_then<U, F>(self, f: F) -> AndThen<Self, F> where
+        F: Fn(Self::Value) -> Result<U, Self::Error>
     {
         AndThen::new(self, f)
     }
 
-    fn and_compose<U, P>(self, p: P) -> AndCompose<Self, I, T, E, P, U> where
-        P: SizedParser<I, U, E>
+    fn and_compose<U, P>(self, p: P) -> AndCompose<Self, P> where
+        P: SizedParser<I, Value=U, Error=Self::Error>
     {
         AndCompose::new(self, p)
     }
 
-    fn preserve_and_compose<U, P>(self, p: P) -> PreserveAndCompose<Self, I, T, E, P, U> where
-        P: SizedParser<I, U, E>
+    fn preserve_and_compose<U, P>(self, p: P) -> PreserveAndCompose<Self, P> where
+        P: SizedParser<I, Value=U, Error=Self::Error>
     {
         PreserveAndCompose::new(self, p)
     }
 
-    fn and_then_compose<U, P, F>(self, f: F) -> AndThenCompose<Self, I, T, E, P, U, F> where
-        P: SizedParser<I, U, E>,
-        F: Fn(T) -> P
+    fn and_then_compose<U, P, F>(self, f: F) -> AndThenCompose<Self, F> where
+        P: SizedParser<I, Value=U, Error=Self::Error>,
+        F: Fn(Self::Value) -> P
     {
         AndThenCompose::new(self, f)
     }
 
     // Error mapping
 
-    fn map_err<F, O>(self, o: O) -> MapErr<Self, I, T, E, F, O> where
-        O: Fn(E) -> F
+    fn map_err<F, O>(self, o: O) -> MapErr<Self, O> where
+        O: Fn(Self::Error) -> F
     {
         MapErr::new(self, o)
     }
 
-    fn or_else<F, O>(self, o: O) -> OrElse<Self, I, T, E, F, O> where
-        O: Fn(E) -> Result<T, F>
+    fn or_else<F, O>(self, o: O) -> OrElse<Self, O> where
+        O: Fn(Self::Error) -> Result<Self::Value, F>
     {
         OrElse::new(self, o)
     }
 
-    fn or_compose<F, P>(self, p: P) -> OrCompose<Self, I, T, E, P, F> where
-        P: SizedParser<I, T, F>
+    fn or_compose<F, P>(self, p: P) -> OrCompose<Self, P> where
+        P: SizedParser<I, Value=Self::Value, Error=F>
     {
         OrCompose::new(self, p)
     }
 
-    fn or_else_compose<F, P, O>(self, o: O) -> OrElseCompose<Self, I, T, E, P, F, O> where
-        P: SizedParser<I, T, F>,
-        O: Fn(E) -> P
+    fn or_else_compose<F, P, O>(self, o: O) -> OrElseCompose<Self, O> where
+        P: SizedParser<I, Value=Self::Value, Error=F>,
+        O: Fn(Self::Error) -> P
     {
         OrElseCompose::new(self, o)
     }
 
     // Vector Combinators
 
-    fn many(self) -> Many<Self, I, T, E> {
+    fn many<E>(self) -> Many<Self, E> {
         Many::new(self)
     }
 
-    fn some(self) -> Some<Self, I, T, E> {
+    fn some(self) -> Some<Self> {
         Some::new(self)
     }
 
-    fn least_until<U, F, P>(self, end: P) -> Least<Self, I, T, E, P, U, F> where
-        P: SizedParser<I, U, F>
+    fn least_until<U, F, P>(self, end: P) -> Least<Self, P> where
+        P: SizedParser<I, Value=U, Error=F>
     {
         Least::new(self, end)
     }
 
     // already attempts due to creation of stack structure
-    fn most_until<U, F, P>(self, end: P) -> Most<Self, I, T, E, P, U, F> where
-        P: SizedParser<I, U, F>
+    fn most_until<U, F, P>(self, end: P) -> Most<Self, P> where
+        P: SizedParser<I, Value=U, Error=F>
     {
         Most::new(self, end)
     }
 
     // Error recovery
 
-    fn continue_with<F, P>(self, p: P) -> Continue<Self, I, T, E, P, F> where
-        P: SizedParser<I, (), F>
+    fn continue_with<F, P>(self, p: P) -> Continue<Self, P> where
+        P: SizedParser<I, Value=(), Error=F>
     {
         Continue::new(self, p)
     }
 
-    fn recover_with<F, P>(self, p: P) -> Recover<Self, I, T, E, P, F> where
-        P: SizedParser<I, (), F>
+    fn recover_with<F, P>(self, p: P) -> Recover<Self, P> where
+        P: SizedParser<I, Value=(), Error=F>
     {
         Recover::new(self, p)
     }
 
-    fn absorb_err<U>(self) -> AbsorbErr<Self, I, T, E, U> where
-        T: Into<Result<U, E>>
+    fn absorb_err<U>(self) -> AbsorbErr<Map<Self, impl Fn(Self::Value) -> Result<U, Self::Error>>> where
+        Self::Value: Into<Result<U, Self::Error>>
     {
-        AbsorbErr::new(self)
+        AbsorbErr::new(self.map(|val| val.into()))
     }
 }

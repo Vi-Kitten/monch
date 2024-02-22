@@ -17,9 +17,12 @@ impl Expect {
     }
 }
 
-impl<I> Parser<I, String, String> for Expect where
-    I: Iterator<Item = char> + Clone
+impl<I> Parser<I> for Expect where
+    I: Iterator<Item=char> + Clone
 {
+    type Value = String;
+    type Error = String;
+
     fn parse(&self, iter: &mut I) -> Result<String, String> {
         if iter.take(self.expect.len()).collect::<String>() == self.expect {
             Ok(self.expect.clone())
@@ -29,10 +32,10 @@ impl<I> Parser<I, String, String> for Expect where
     }
 }
 
-fn expect<T, E, I>(expect: T, err: E) -> impl SizedParser<I, String, String> where
+fn expect<I, T, E>(expect: T, err: E) -> impl Parser<I, Value=String, Error=String> where
+    I: Iterator<Item=char> + Clone,
     T: Into<String>,
-    E: Into<String>,
-    I: Iterator<Item = char> + Clone
+    E: Into<String>
 {
     Expect::new(expect, err)
 }
@@ -51,9 +54,12 @@ impl ExpectEnd {
     }
 }
 
-impl<I> Parser<I, (), String> for ExpectEnd where
-    I: Iterator<Item = char> + Clone
+impl<I> Parser<I> for ExpectEnd where
+    I: Iterator<Item=char> + Clone
 {
+    type Value = ();
+    type Error = String;
+
     fn parse(&self, iter: &mut I) -> Result<(), String> {
         if let None = iter.next() {
             Ok(())
@@ -63,9 +69,9 @@ impl<I> Parser<I, (), String> for ExpectEnd where
     }
 }
 
-fn expect_end<E, I>(err: E) -> impl SizedParser<I, (), String> where
-    E: Into<String>,
-    I: Iterator<Item = char> + Clone
+fn expect_end<I, E>(err: E) -> impl Parser<I, Value=(), Error=String> where
+    I: Iterator<Item=char> + Clone,
+    E: Into<String>
 {
     ExpectEnd::new(err)
 }
@@ -89,8 +95,7 @@ fn test_parse() {
 fn test_wrap() {
     let mut iter = "".chars();
     assert_eq!(
-        wrap("abc".into())
-        .map_err::<!, _>(|_: !| unreachable!())
+        wrap::<_, !>("abc".into())
         .parse(&mut iter),
         Ok("abc")
     );
@@ -105,8 +110,7 @@ fn test_wrap() {
 fn test_fail() {
     let mut iter = "".chars();
     assert_eq!(
-        fail(format!("err"))
-        .map::<!, _>(|_: !| unreachable!())
+        fail::<!, _>(format!("err"))
         .parse(&mut iter),
         Err("err".into())
     );
