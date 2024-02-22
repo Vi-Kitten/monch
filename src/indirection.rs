@@ -18,13 +18,13 @@ impl<P, F, I, T, E> UnsizedParser<I, T, E> for LazyParser<P, F> where
 
         let mut parser = self.parser.borrow_mut();
         let Err(f) = &mut*parser else {
-            panic!()
+            unreachable!()
         };
         *parser = Ok(std::mem::take(f).unwrap()());
         drop(parser);
 
         let Ok(p) = &*self.parser.borrow() else {
-            panic!()
+            unreachable!()
         };
         p.parse(iter)
     }
