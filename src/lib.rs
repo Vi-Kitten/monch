@@ -1,3 +1,6 @@
+#![feature(unboxed_closures)]
+#![feature(fn_traits)]
+
 #![feature(decl_macro)]
 #![feature(never_type)]
 
@@ -13,15 +16,6 @@ pub enum ParseError<Msg = String> {
     Expected(Msg),
     Context(Msg, Box<ParseError>),
     Bundle(Vec<ParseError>)
-}
-
-impl<F, I, T, E> UnsizedParser<I, T, E> for F where
-    F: for<'i> Fn(&'i mut I) -> Result<T, E>,
-    I: Iterator + Clone
-{
-    fn parse(&self, iter: &mut I) -> Result<T, E> {
-        self(iter)
-    }
 }
 
 pub fn parse_ok<T>(t: T) -> ParseOk<T> where
@@ -65,30 +59,26 @@ impl<P, I, T, E> Parser<I, T, E> for P where
     I: Iterator + Clone,
     P: Sized + UnsizedParser<I, T, E> {}
 
-pub macro recursive {
-    ($p:expr) => {
-        |iter: &mut _| {
-            $p.parse(iter)
-        }
-    }
-}
-
 pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
     I: Iterator + Clone,
     Self: Sized
 {
+    fn reference<'p>(&'p self) -> RefParser<'p, Self, I, T, E> {
+        RefParser::new(self)
+    }
+
     fn discard(self) -> Map<Self, I, T, E, (), impl Fn(T)> {
         self.map(|_| ())
     }
 
-    fn lense<J>(self, f: impl Fn(&mut J) -> &mut I) -> impl Parser<J, T, E> where
-        J: Iterator + Clone
-    {
-        move |jter: &mut J| {
-            let mut iter: &mut I = f(jter);
-            self.parse(&mut iter)
-        }
-    }
+    // fn lense<J>(self, f: impl Fn(&mut J) -> &mut I) -> impl Parser<J, T, E> where
+    //     J: Iterator + Clone
+    // {
+    //     move |jter: &mut J| {
+    //         let mut iter: &mut I = f(jter);
+    //         self.parse(&mut iter)
+    //     }
+    // }
 
     // Backtracking
 

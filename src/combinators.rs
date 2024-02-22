@@ -1,3 +1,5 @@
+use std::cell::OnceCell;
+
 use super::*;
 
 #[derive(Clone)]
@@ -864,5 +866,71 @@ impl<P, I, T, E, U> UnsizedParser<I, U, E> for AbsorbErr<P, I, T, E, U> where
 {
     fn parse(&self, iter: &mut I) -> Result<U, E> {
         self.parser.parse(iter)?.into()
+    }
+}
+
+// Indirection
+
+#[derive(Clone)]
+pub struct RefParser<'p, P, I, T, E> where
+    I: Iterator + Clone,
+    P: UnsizedParser<I, T, E>
+{
+    parser: &'p P,
+    _i: std::marker::PhantomData<I>,
+    _t: std::marker::PhantomData<T>,
+    _e: std::marker::PhantomData<E>,
+}
+
+impl<'p, P, I, T, E> RefParser<'p, P, I, T, E> where
+    I: Iterator + Clone,
+    P: UnsizedParser<I, T, E>
+{
+    pub fn new(parser: &'p P) -> RefParser<'p, P, I, T, E> {
+        RefParser {
+            parser: parser,
+            _i: std::marker::PhantomData,
+            _t: std::marker::PhantomData,
+            _e: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'p, P, I, T, E> UnsizedParser<I, T, E> for RefParser<'p, P, I, T, E> where
+    I: Iterator + Clone,
+    P: UnsizedParser<I, T, E>
+{
+    fn parse(&self, iter: &mut I) -> Result<T, E> {
+        self.parser.parse(iter)
+    }
+}
+
+#[derive(Clone)]
+pub struct ForwardDef<'p, I, T, E> where
+    I: Iterator + Clone
+{
+    parser: OnceCell<&'p dyn UnsizedParser<I, T, E>>
+}
+
+impl<'p, I, T, E> ForwardDef<'p, I, T, E> where
+    I: Iterator + Clone
+{
+    pub fn new() -> ForwardDef<'p, I, T, E> {
+        ForwardDef {
+            parser : OnceCell::new()
+        }
+    }
+
+    pub fn define(&self, parser: &'p impl UnsizedParser<I, T, E>) -> Result<(), &'p dyn UnsizedParser<I, T, E>> where
+    {
+        self.parser.set(parser)
+    }
+}
+
+impl<'p, I, T, E> UnsizedParser<I, T, E> for ForwardDef<'p, I, T, E> where
+    I: Iterator + Clone
+{
+    fn parse(&self, iter: &mut I) -> Result<T, E> {
+        self.parser.get().unwrap().parse(iter)
     }
 }
