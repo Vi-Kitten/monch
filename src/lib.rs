@@ -17,19 +17,19 @@ pub enum ParseError<Msg = String> {
     Bundle(Vec<ParseError>)
 }
 
-pub fn parse_ok<T>(t: T) -> ParseOk<T> where
+pub fn wrap<T>(t: T) -> Wrap<T> where
     T: Clone
 {
-    ParseOk::new(t)
+    Wrap::new(t)
 }
 
-pub fn parse_err<E>(e: E) -> ParseErr<E> where
+pub fn fail<E>(e: E) -> Fail<E> where
     E: Clone
 {
-    ParseErr::new(e)
+    Fail::new(e)
 }
 
-pub trait UnsizedParser<I, T, E = ParseError> where
+pub trait Parser<I, T, E = ParseError> where
     I: Iterator + Clone
 {
     fn parse(&self, iter: &mut I) -> Result<T, E>;
@@ -54,11 +54,11 @@ pub trait UnsizedParser<I, T, E = ParseError> where
     }
 }
 
-impl<P, I, T, E> Parser<I, T, E> for P where
+impl<P, I, T, E> SizedParser<I, T, E> for P where
     I: Iterator + Clone,
-    P: Sized + UnsizedParser<I, T, E> {}
+    P: Sized + Parser<I, T, E> {}
 
-pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
+pub trait SizedParser<I, T, E = ParseError>: Parser<I, T, E> where
     I: Iterator + Clone,
     Self: Sized
 {
@@ -109,19 +109,19 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
     }
 
     fn and_compose<U, P>(self, p: P) -> AndCompose<Self, I, T, E, P, U> where
-        P: Parser<I, U, E>
+        P: SizedParser<I, U, E>
     {
         AndCompose::new(self, p)
     }
 
     fn preserve_and_compose<U, P>(self, p: P) -> PreserveAndCompose<Self, I, T, E, P, U> where
-        P: Parser<I, U, E>
+        P: SizedParser<I, U, E>
     {
         PreserveAndCompose::new(self, p)
     }
 
     fn and_then_compose<U, P, F>(self, f: F) -> AndThenCompose<Self, I, T, E, P, U, F> where
-        P: Parser<I, U, E>,
+        P: SizedParser<I, U, E>,
         F: Fn(T) -> P
     {
         AndThenCompose::new(self, f)
@@ -142,13 +142,13 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
     }
 
     fn or_compose<F, P>(self, p: P) -> OrCompose<Self, I, T, E, P, F> where
-        P: Parser<I, T, F>
+        P: SizedParser<I, T, F>
     {
         OrCompose::new(self, p)
     }
 
     fn or_else_compose<F, P, O>(self, o: O) -> OrElseCompose<Self, I, T, E, P, F, O> where
-        P: Parser<I, T, F>,
+        P: SizedParser<I, T, F>,
         O: Fn(E) -> P
     {
         OrElseCompose::new(self, o)
@@ -165,14 +165,14 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
     }
 
     fn least_until<U, F, P>(self, end: P) -> Least<Self, I, T, E, P, U, F> where
-        P: Parser<I, U, F>
+        P: SizedParser<I, U, F>
     {
         Least::new(self, end)
     }
 
     // already attempts due to creation of stack structure
     fn most_until<U, F, P>(self, end: P) -> Most<Self, I, T, E, P, U, F> where
-        P: Parser<I, U, F>
+        P: SizedParser<I, U, F>
     {
         Most::new(self, end)
     }
@@ -180,13 +180,13 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
     // Error recovery
 
     fn continue_with<F, P>(self, p: P) -> Continue<Self, I, T, E, P, F> where
-        P: Parser<I, (), F>
+        P: SizedParser<I, (), F>
     {
         Continue::new(self, p)
     }
 
     fn recover_with<F, P>(self, p: P) -> Recover<Self, I, T, E, P, F> where
-        P: Parser<I, (), F>
+        P: SizedParser<I, (), F>
     {
         Recover::new(self, p)
     }

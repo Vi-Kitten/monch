@@ -17,7 +17,7 @@ impl Expect {
     }
 }
 
-impl<I> UnsizedParser<I, String, String> for Expect where
+impl<I> Parser<I, String, String> for Expect where
     I: Iterator<Item = char> + Clone
 {
     fn parse(&self, iter: &mut I) -> Result<String, String> {
@@ -29,7 +29,7 @@ impl<I> UnsizedParser<I, String, String> for Expect where
     }
 }
 
-fn expect<T, E, I>(expect: T, err: E) -> impl Parser<I, String, String> where
+fn expect<T, E, I>(expect: T, err: E) -> impl SizedParser<I, String, String> where
     T: Into<String>,
     E: Into<String>,
     I: Iterator<Item = char> + Clone
@@ -51,7 +51,7 @@ impl ExpectEnd {
     }
 }
 
-impl<I> UnsizedParser<I, (), String> for ExpectEnd where
+impl<I> Parser<I, (), String> for ExpectEnd where
     I: Iterator<Item = char> + Clone
 {
     fn parse(&self, iter: &mut I) -> Result<(), String> {
@@ -63,7 +63,7 @@ impl<I> UnsizedParser<I, (), String> for ExpectEnd where
     }
 }
 
-fn expect_end<E, I>(err: E) -> impl Parser<I, (), String> where
+fn expect_end<E, I>(err: E) -> impl SizedParser<I, (), String> where
     E: Into<String>,
     I: Iterator<Item = char> + Clone
 {
@@ -86,10 +86,10 @@ fn test_parse() {
 }
 
 #[test]
-fn test_parse_ok() {
+fn test_wrap() {
     let mut iter = "".chars();
     assert_eq!(
-        parse_ok("abc".into())
+        wrap("abc".into())
         .map_err::<!, _>(|_: !| unreachable!())
         .parse(&mut iter),
         Ok("abc")
@@ -102,10 +102,10 @@ fn test_parse_ok() {
 }
 
 #[test]
-fn test_parse_err() {
+fn test_fail() {
     let mut iter = "".chars();
     assert_eq!(
-        parse_err(format!("err"))
+        fail(format!("err"))
         .map::<!, _>(|_: !| unreachable!())
         .parse(&mut iter),
         Err("err".into())
