@@ -7,7 +7,6 @@
 
 #[cfg(test)]
 mod tests;
-pub mod indirection;
 pub mod combinators;
 use combinators::*;
 
@@ -71,14 +70,12 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
         self.map(|_| ())
     }
 
-    // fn lense<J>(self, f: impl Fn(&mut J) -> &mut I) -> impl Parser<J, T, E> where
-    //     J: Iterator + Clone
-    // {
-    //     move |jter: &mut J| {
-    //         let mut iter: &mut I = f(jter);
-    //         self.parse(&mut iter)
-    //     }
-    // }
+    fn lense<J, F>(self, f: F) -> Lense<Self, I, T, E, J, F> where
+        J: Iterator + Clone,
+        F: Fn(&mut J) -> &mut I
+    {
+        Lense::new(self, f)
+    }
 
     // Backtracking
 
@@ -174,7 +171,9 @@ pub trait Parser<I, T, E = ParseError>: UnsizedParser<I, T, E> where
     }
 
     // already attempts due to creation of stack structure
-    fn most_until<U, F>(self, end: impl Parser<I, U, F>) -> impl Parser<I, (Vec<T>, U), E> {
+    fn most_until<U, F, P>(self, end: P) -> Most<Self, I, T, E, P, U, F> where
+        P: Parser<I, U, F>
+    {
         Most::new(self, end)
     }
 

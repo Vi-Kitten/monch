@@ -1,5 +1,4 @@
 use std::cell::OnceCell;
-
 use super::*;
 
 #[derive(Clone)]
@@ -51,6 +50,51 @@ impl<I, T, E> UnsizedParser<I, T, E> for ParseErr<E> where
 {
     fn parse(&self, _iter: &mut I) -> Result<T, E> {
         Err(self.e.clone())
+    }
+}
+
+#[derive(Clone)]
+pub struct Lense<P, I, T, E, J, F> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    J: Iterator + Clone,
+    F: Fn(&mut J) -> &mut I
+{
+    parser: P,
+    lense: F,
+    _i: std::marker::PhantomData<I>,
+    _t: std::marker::PhantomData<T>,
+    _e: std::marker::PhantomData<E>,
+    _j: std::marker::PhantomData<J>,
+}
+
+impl<P, I, T, E, J, F> Lense<P, I, T, E, J, F> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    J: Iterator + Clone,
+    F: Fn(&mut J) -> &mut I
+{
+    pub fn new(parser: P, lense: F) -> Lense<P, I, T, E, J, F> {
+        Lense {
+            parser: parser,
+            lense: lense,
+            _i: std::marker::PhantomData,
+            _t: std::marker::PhantomData,
+            _e: std::marker::PhantomData,
+            _j: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<P, I, T, E, J, F> UnsizedParser<J, T, E> for Lense<P, I, T, E, J, F> where
+    I: Iterator + Clone,
+    P: Parser<I, T, E>,
+    J: Iterator + Clone,
+    F: Fn(&mut J) -> &mut I
+{
+    fn parse(&self, jter: &mut J) -> Result<T, E> {        
+        let mut iter: &mut I = (self.lense)(jter);
+        self.parser.parse(&mut iter)
     }
 }
 

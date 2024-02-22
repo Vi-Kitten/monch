@@ -133,46 +133,46 @@ fn test_discard() {
     )
 }
 
-// #[test]
-// fn test_lense() {
-//     struct WrappedIter<I: Iterator>(I);
+#[test]
+fn test_lense() {
+    struct WrappedIter<I: Iterator>(I);
 
-//     impl<I: Iterator> WrappedIter<I> {
-//         fn get_mut(&mut self) -> &mut I {
-//             let WrappedIter(iter) = self;
-//             iter
-//         }
-//     }
+    impl<I: Iterator> WrappedIter<I> {
+        fn get_mut(&mut self) -> &mut I {
+            let WrappedIter(iter) = self;
+            iter
+        }
+    }
 
-//     impl<I: Iterator> Iterator for WrappedIter<I> {
-//         type Item = I::Item;
+    impl<I: Iterator> Iterator for WrappedIter<I> {
+        type Item = I::Item;
 
-//         fn next(&mut self) -> Option<Self::Item> {
-//             let WrappedIter(iter) = self;
-//             iter.next()
-//         }
-//     }
+        fn next(&mut self) -> Option<Self::Item> {
+            let WrappedIter(iter) = self;
+            iter.next()
+        }
+    }
 
-//     impl<I: Iterator + Clone> Clone for WrappedIter<I> {
-//         fn clone(&self) -> Self {
-//             let WrappedIter(iter) = self;
-//             WrappedIter(iter.clone())
-//         }
-//     }
+    impl<I: Iterator + Clone> Clone for WrappedIter<I> {
+        fn clone(&self) -> Self {
+            let WrappedIter(iter) = self;
+            WrappedIter(iter.clone())
+        }
+    }
 
-//     let mut iter = WrappedIter("abc".chars());
-//     assert_eq!(
-//         expect("abc", "test_failure")
-//         .lense(WrappedIter::get_mut)
-//         .parse(&mut iter),
-//         Ok("abc".into())
-//     );
-//     assert_eq!(
-//         expect_end("test_failure")
-//         .parse(&mut iter),
-//         Ok(())
-//     )
-// }
+    let mut iter = WrappedIter("abc".chars());
+    assert_eq!(
+        expect("abc", "test_failure")
+        .lense(WrappedIter::get_mut)
+        .parse(&mut iter),
+        Ok("abc".into())
+    );
+    assert_eq!(
+        expect_end("test_failure")
+        .parse(&mut iter),
+        Ok(())
+    )
+}
 
 // Backtracking
 
@@ -662,4 +662,55 @@ fn test_recursive_capability() {
     let Ok(()) = expr_parser.define(&inner_expr_parser) else {
         unreachable!();
     };
+    let mut iter = "abc".chars();
+    assert_eq!(
+        expr_parser
+        .parse(&mut iter),
+        Ok(
+            Abc
+        )
+    );
+    assert_eq!(
+        expect_end("test_failure")
+        .parse(&mut iter),
+        Ok(())
+    );
+    let mut iter = "(abcabcabc)".chars();
+    assert_eq!(
+        expr_parser
+        .parse(&mut iter),
+        Ok(
+            Exprs(vec![
+                Abc,
+                Abc,
+                Abc
+            ])
+        )
+    );
+    assert_eq!(
+        expect_end("test_failure")
+        .parse(&mut iter),
+        Ok(())
+    );
+    let mut iter = "(abcabc(abcabc)abc)".chars();
+    assert_eq!(
+        expr_parser
+        .parse(&mut iter),
+        Ok(
+            Exprs(vec![
+                Abc,
+                Abc,
+                Exprs(vec![
+                    Abc,
+                    Abc
+                ]),
+                Abc
+            ])
+        )
+    );
+    assert_eq!(
+        expect_end("test_failure")
+        .parse(&mut iter),
+        Ok(())
+    )
 }
