@@ -718,3 +718,24 @@ fn test_recursive_capability() {
         Ok(())
     )
 }
+
+#[test]
+fn test_apply_macro() {
+    let mut iter = "abcdefghi".chars();
+    assert_eq!(
+        apply!(
+            |a, b, c| (a, b, c),
+            expect("abc", "test_failure_0"),
+            expect("def", "test_failure_1"),
+            expect("ghi", "test_failure_2")
+
+        )
+        .parse(&mut iter),
+        Ok(("abc".into(), "def".into(), "ghi".into()))
+    );
+    assert_eq!(
+        expect_end("test_failure")
+        .parse(&mut iter),
+        Ok(())
+    )   
+}

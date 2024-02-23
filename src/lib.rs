@@ -1,14 +1,28 @@
-#![feature(unboxed_closures)]
-#![feature(fn_traits)]
-
 #![feature(decl_macro)]
 #![feature(never_type)]
-
 
 #[cfg(test)]
 mod tests;
 pub mod combinators;
 use combinators::*;
+
+pub macro apply {
+    ($f:expr) => {
+        Apply0::new($f)
+    },
+    ($f:expr, $p1:expr) => {
+        Apply1::new($f, $p1)
+    },
+    ($f:expr, $p1:expr, $p2:expr) => {
+        Apply2::new($f, $p1, $p2)
+    },
+    ($f:expr, $p1:expr, $p2:expr, $p3:expr) => {
+        Apply3::new($f, $p1, $p2, $p3)
+    },
+    ($f:expr, $p1:expr, $p2:expr, $p3:expr, $p4:expr) => {
+        Apply4::new($f, $p1, $p2, $p3, $p4)
+    }
+}
 
 pub enum ParseError<Msg = String> {
     UnexpectedEnd,

@@ -739,3 +739,186 @@ impl<'p, I, T, E> Parser<I> for ForwardDef<'p, I, T, E> where
         self.parser.get().unwrap().parse(iter)
     }
 }
+
+// Application
+
+#[derive(Clone)]
+pub struct Apply0<F, E> {
+    f: F,
+    _e: PhantomData<E>,
+}
+
+impl<F, E> Apply0<F, E> {
+    pub fn new(f: F) -> Apply0<F, E> {
+        Apply0 {
+            f,
+            _e: PhantomData
+        }
+    }
+}
+
+impl<I, F, T, E> Parser<I> for Apply0<F, E> where
+    I: Iterator + Clone,
+    F: Fn() -> T
+{
+    type Value = T;
+    type Error = E;
+
+    fn parse(&self, _iter: &mut I) -> Result<T, E> {
+        Ok(
+            (self.f)()
+        )
+    }
+}
+
+#[derive(Clone)]
+pub struct Apply1<F, P1> {
+    f: F,
+    p1: P1,
+}
+
+impl<F, P1> Apply1<F, P1> {
+    pub fn new(f: F, p1: P1) -> Apply1<F, P1> {
+        Apply1 {
+            f,
+            p1,
+        }
+    }
+}
+
+impl<I, F, T, E, P1> Parser<I> for Apply1<F, P1> where
+    I: Iterator + Clone,
+    P1: Parser<I, Error=E>,
+    F: Fn(P1::Value) -> T
+{
+    type Value = T;
+    type Error = E;
+
+    fn parse(&self, iter: &mut I) -> Result<T, E> {
+        Ok(
+            (self.f)(
+                self.p1.parse(iter)?
+            )
+        )
+    }
+}
+
+#[derive(Clone)]
+pub struct Apply2<F, P1, P2> {
+    f: F,
+    p1: P1,
+    p2: P2,
+}
+
+impl<F, P1, P2> Apply2<F, P1, P2> {
+    pub fn new(f: F, p1: P1, p2: P2) -> Apply2<F, P1, P2> {
+        Apply2 {
+            f,
+            p1,
+            p2,
+        }
+    }
+}
+
+impl<I, F, T, E, P1, P2> Parser<I> for Apply2<F, P1, P2> where
+    I: Iterator + Clone,
+    P1: Parser<I, Error=E>,
+    P2: Parser<I, Error=E>,
+    F: Fn(P1::Value, P2::Value) -> T
+{
+    type Value = T;
+    type Error = E;
+
+    fn parse(&self, iter: &mut I) -> Result<T, E> {
+        Ok(
+            (self.f)(
+                self.p1.parse(iter)?,
+                self.p2.parse(iter)?
+            )
+        )
+    }
+}
+
+#[derive(Clone)]
+pub struct Apply3<F, P1, P2, P3> {
+    f: F,
+    p1: P1,
+    p2: P2,
+    p3: P3,
+}
+
+impl<F, P1, P2, P3> Apply3<F, P1, P2, P3> {
+    pub fn new(f: F, p1: P1, p2: P2, p3: P3) -> Apply3<F, P1, P2, P3> {
+        Apply3 {
+            f,
+            p1,
+            p2,
+            p3,
+        }
+    }
+}
+
+impl<I, F, T, E, P1, P2, P3> Parser<I> for Apply3<F, P1, P2, P3> where
+    I: Iterator + Clone,
+    P1: Parser<I, Error=E>,
+    P2: Parser<I, Error=E>,
+    P3: Parser<I, Error=E>,
+    F: Fn(P1::Value, P2::Value, P3::Value) -> T
+{
+    type Value = T;
+    type Error = E;
+
+    fn parse(&self, iter: &mut I) -> Result<T, E> {
+        Ok(
+            (self.f)(
+                self.p1.parse(iter)?,
+                self.p2.parse(iter)?,
+                self.p3.parse(iter)?
+            )
+        )
+    }
+}
+
+#[derive(Clone)]
+pub struct Apply4<F, P1, P2, P3, P4> {
+    f: F,
+    p1: P1,
+    p2: P2,
+    p3: P3,
+    p4: P4,
+}
+
+impl<F, P1, P2, P3, P4> Apply4<F, P1, P2, P3, P4> {
+    pub fn new(f: F, p1: P1, p2: P2, p3: P3, p4: P4) -> Apply4<F, P1, P2, P3, P4> {
+        Apply4 {
+            f,
+            p1,
+            p2,
+            p3,
+            p4,
+        }
+    }
+}
+
+impl<I, F, T, E, P1, P2, P3, P4> Parser<I> for Apply4<F, P1, P2, P3, P4> where
+    I: Iterator + Clone,
+    P1: Parser<I, Error=E>,
+    P2: Parser<I, Error=E>,
+    P3: Parser<I, Error=E>,
+    P4: Parser<I, Error=E>,
+    F: Fn(P1::Value, P2::Value, P3::Value, P4::Value) -> T
+{
+    type Value = T;
+    type Error = E;
+
+    fn parse(&self, iter: &mut I) -> Result<T, E> {
+        Ok(
+            (self.f)(
+                self.p1.parse(iter)?,
+                self.p2.parse(iter)?,
+                self.p3.parse(iter)?,
+                self.p4.parse(iter)?
+            )
+        )
+    }
+}
