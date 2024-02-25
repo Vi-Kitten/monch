@@ -1,6 +1,7 @@
 
 pub enum Found<Tokens> {
-    Tokens(Vec<Tokens>)
+    Tokens(Vec<Tokens>),
+    StreamEnd
 }
 
 pub enum ParseError<Tokens, Msg = String> {
