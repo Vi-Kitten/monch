@@ -4,31 +4,82 @@
 #[cfg(test)]
 mod tests;
 pub mod combinators;
+pub mod errors;
+
 use combinators::*;
 
-pub macro apply {
-    ($f:expr) => {
-        Apply0::new($f)
-    },
-    ($f:expr, $p1:expr) => {
-        Apply1::new($f, $p1)
-    },
-    ($f:expr, $p1:expr, $p2:expr) => {
-        Apply2::new($f, $p1, $p2)
-    },
-    ($f:expr, $p1:expr, $p2:expr, $p3:expr) => {
-        Apply3::new($f, $p1, $p2, $p3)
-    },
-    ($f:expr, $p1:expr, $p2:expr, $p3:expr, $p4:expr) => {
-        Apply4::new($f, $p1, $p2, $p3, $p4)
+#[derive(Clone, Copy, Default)]
+pub struct ParseInfo {
+    pub taken: usize,
+    pub read: usize,
+}
+
+impl ParseInfo {
+    pub fn new(taken: usize, read: usize) -> ParseInfo {
+        ParseInfo {
+            taken,
+            read,
+        }
+    }
+
+    pub fn ok<T, E>(self, val: T) -> ParseResult<T, E> {
+        ParseResult::new(self, Ok(val))
+    }
+
+    pub fn err<T, E>(self, err: E) -> ParseResult<T, E> {
+        ParseResult::new(self, Err(err))
+    }
+
+    pub fn with<T, E>(self, res: Result<T, E>) -> ParseResult<T, E> {
+        ParseResult::new(self, res)
     }
 }
 
-pub enum ParseError<Msg = String> {
-    UnexpectedEnd,
-    Expected(Msg),
-    Context(Msg, Box<ParseError>),
-    Bundle(Vec<ParseError>)
+/// not commutative
+impl std::ops::Add for ParseInfo {
+    type Output = ParseInfo;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        ParseInfo::new(
+            self.taken + rhs.taken,
+            std::cmp::max(self.read, self.taken + rhs.read)
+        )
+    }
+}
+
+/// not commutative
+impl std::ops::AddAssign for ParseInfo {
+    fn add_assign(&mut self, rhs: Self) {
+        self.read = std::cmp::max(self.read, self.taken + rhs.read);
+        self.taken += rhs.taken;
+    }
+}
+
+pub struct ParseResult<T, E> {
+    info: ParseInfo,
+    result: Result<T, E>,
+}
+
+impl<T, E> ParseResult<T, E> {
+    pub fn new(info: ParseInfo, result: Result<T, E>) -> ParseResult<T, E> {
+        ParseResult {
+            info,
+            result,
+        }
+    }
+
+    pub fn get_info(&self) -> ParseInfo {
+        self.info
+    }
+
+    pub fn into_result(self) -> Result<T, E> {
+        self.result
+    }
+
+    pub fn record_to(self, info: &mut ParseInfo) -> Result<T, E> {
+        *info += self.get_info();
+        self.into_result()
+    }
 }
 
 pub fn wrap<T, E>(t: T) -> Wrap<T, E> where
@@ -49,25 +100,39 @@ pub trait Parser<I> where
     type Value;
     type Error;
 
-    fn parse(&self, iter: &mut I) -> Result<Self::Value, Self::Error>;
+    fn parse(&self, iter: &mut I) -> ParseResult<Self::Value, Self::Error>;
 
-    fn attempt_parse(&self, iter: &mut I) -> Result<Self::Value, Self::Error> {
+    fn attempt_parse(&self, iter: &mut I) -> ParseResult<Self::Value, Self::Error> {
+        let mut info = ParseInfo::default();
         let backup = iter.clone();
-        self.parse(iter).map_err(|e| {
-            *iter = backup;
-            e                
-        })
+        match self.parse(iter).record_to(&mut info) {
+            Ok(val) => info.ok(val),
+            Err(err) => {
+                *iter = backup;
+                info.taken = 0;
+                info.err(err)
+            }
+        }
     }
 
-    fn scry_parse(&self, iter: &mut I) -> Result<Self::Value, Self::Error> {
+    fn scry_parse(&self, iter: &mut I) -> ParseResult<Self::Value, Self::Error> {
+        let mut info = ParseInfo::default();
         let backup = iter.clone();
-        let val = self.parse(iter)?;
-        *iter = backup;
-        Ok(val)
+        match self.parse(iter).record_to(&mut info) {
+            Ok(val) => {
+                *iter = backup;
+                info.taken = 0;
+                info.ok(val)
+            },
+            Err(err) => info.err(err)
+        }
     }
 
-    fn backtrack_parse(&self, iter: &mut I) -> Result<Self::Value, Self::Error> {
-        self.parse(&mut iter.clone())
+    fn backtrack_parse(&self, iter: &mut I) -> ParseResult<Self::Value, Self::Error> {
+        let mut info = ParseInfo::default();
+        let res = self.parse(&mut iter.clone()).record_to(&mut info);
+        info.taken = 0;
+        ParseResult::new(info, res)
     }
 }
 
