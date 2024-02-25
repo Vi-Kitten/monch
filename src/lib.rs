@@ -4,7 +4,10 @@
 #[cfg(test)]
 mod tests;
 pub mod combinators;
+pub mod state;
+
 use combinators::*;
+use state::*;
 
 pub macro apply {
     ($f:expr) => {
@@ -43,15 +46,16 @@ pub fn fail<T, E>(e: E) -> Fail<T, E> where
     Fail::new(e)
 }
 
-pub trait Parser<I> where
-    I: Iterator + Clone
-{
+pub trait Parser<Tok, State> {
     type Value;
     type Error;
 
-    fn parse(&self, iter: &mut I) -> Result<Self::Value, Self::Error>;
+    fn parse<I>(&self, iter: &mut I) -> Result<Self::Value, Self::Error> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone;
 
-    fn attempt_parse(&self, iter: &mut I) -> Result<Self::Value, Self::Error> {
+    fn attempt_parse<I>(&self, iter: &mut I) -> Result<Self::Value, Self::Error> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         let backup = iter.clone();
         self.parse(iter).map_err(|e| {
             *iter = backup;
@@ -59,24 +63,26 @@ pub trait Parser<I> where
         })
     }
 
-    fn scry_parse(&self, iter: &mut I) -> Result<Self::Value, Self::Error> {
+    fn scry_parse<I>(&self, iter: &mut I) -> Result<Self::Value, Self::Error> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         let backup = iter.clone();
         let val = self.parse(iter)?;
         *iter = backup;
         Ok(val)
     }
 
-    fn backtrack_parse(&self, iter: &mut I) -> Result<Self::Value, Self::Error> {
+    fn backtrack_parse<I>(&self, iter: &mut I) -> Result<Self::Value, Self::Error> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         self.parse(&mut iter.clone())
     }
 }
 
-impl<P, I> SizedParser<I> for P where
-    I: Iterator + Clone,
-    P: Sized + Parser<I> {}
+impl<P, Tok, State> SizedParser<Tok, State> for P where
+    P: Sized + Parser<Tok, State> {}
 
-pub trait SizedParser<I>: Parser<I> where
-    I: Iterator + Clone,
+pub trait SizedParser<Tok, State>: Parser<Tok, State> where
     Self: Sized
 {
     fn reference<'p>(&'p self) -> RefParser<'_, Self> {
@@ -87,9 +93,8 @@ pub trait SizedParser<I>: Parser<I> where
         self.map(|_| ())
     }
 
-    fn lense<J, F>(self, f: F) -> Lense<Self, F> where
-        J: Iterator + Clone,
-        F: Fn(&mut J) -> &mut I
+    fn lense<R, F>(self, f: F) -> Lense<Self, F> where
+        F: for<'s> Fn(&'s mut R) -> &'s mut State
     {
         Lense::new(self, f)
     }
@@ -126,19 +131,19 @@ pub trait SizedParser<I>: Parser<I> where
     }
 
     fn and_compose<U, P>(self, p: P) -> AndCompose<Self, P> where
-        P: SizedParser<I, Value=U, Error=Self::Error>
+        P: SizedParser<Tok, State, Value=U, Error=Self::Error>
     {
         AndCompose::new(self, p)
     }
 
     fn preserve_and_compose<U, P>(self, p: P) -> PreserveAndCompose<Self, P> where
-        P: SizedParser<I, Value=U, Error=Self::Error>
+        P: SizedParser<Tok, State, Value=U, Error=Self::Error>
     {
         PreserveAndCompose::new(self, p)
     }
 
     fn and_then_compose<U, P, F>(self, f: F) -> AndThenCompose<Self, F> where
-        P: SizedParser<I, Value=U, Error=Self::Error>,
+        P: SizedParser<Tok, State, Value=U, Error=Self::Error>,
         F: Fn(Self::Value) -> P
     {
         AndThenCompose::new(self, f)
@@ -159,13 +164,13 @@ pub trait SizedParser<I>: Parser<I> where
     }
 
     fn or_compose<F, P>(self, p: P) -> OrCompose<Self, P> where
-        P: SizedParser<I, Value=Self::Value, Error=F>
+        P: SizedParser<Tok, State, Value=Self::Value, Error=F>
     {
         OrCompose::new(self, p)
     }
 
     fn or_else_compose<F, P, O>(self, o: O) -> OrElseCompose<Self, O> where
-        P: SizedParser<I, Value=Self::Value, Error=F>,
+        P: SizedParser<Tok, State, Value=Self::Value, Error=F>,
         O: Fn(Self::Error) -> P
     {
         OrElseCompose::new(self, o)
@@ -182,14 +187,14 @@ pub trait SizedParser<I>: Parser<I> where
     }
 
     fn least_until<U, F, P>(self, end: P) -> Least<Self, P> where
-        P: SizedParser<I, Value=U, Error=F>
+        P: SizedParser<Tok, State, Value=U, Error=F>
     {
         Least::new(self, end)
     }
 
     // already attempts due to creation of stack structure
     fn most_until<U, F, P>(self, end: P) -> Most<Self, P> where
-        P: SizedParser<I, Value=U, Error=F>
+        P: SizedParser<Tok, State, Value=U, Error=F>
     {
         Most::new(self, end)
     }
@@ -197,13 +202,13 @@ pub trait SizedParser<I>: Parser<I> where
     // Error recovery
 
     fn continue_with<F, P>(self, p: P) -> Continue<Self, P> where
-        P: SizedParser<I, Value=(), Error=F>
+        P: SizedParser<Tok, State, Value=(), Error=F>
     {
         Continue::new(self, p)
     }
 
     fn recover_with<F, P>(self, p: P) -> Recover<Self, P> where
-        P: SizedParser<I, Value=(), Error=F>
+        P: SizedParser<Tok, State, Value=(), Error=F>
     {
         Recover::new(self, p)
     }

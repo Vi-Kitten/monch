@@ -1,5 +1,6 @@
 use std::{cell::OnceCell, marker::PhantomData};
 use super::*;
+use super::state::*;
 
 #[derive(Clone)]
 pub struct Wrap<T, E> where
@@ -20,14 +21,15 @@ impl<T, E> Wrap<T, E> where
     }
 }
 
-impl<I, T, E> Parser<I> for Wrap<T, E> where
-    I: Iterator + Clone,
+impl<Tok, State, T, E> Parser<Tok, State> for Wrap<T, E> where
     T: Clone
 {
     type Value = T;
     type Error = E;
     
-    fn parse(&self, _iter: &mut I) -> Result<T, E> {
+    fn parse<I>(&self, _iter: &mut I) -> Result<T, E> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         Ok(self.val.clone())
     }
 }
@@ -51,14 +53,15 @@ impl<T, E> Fail<T, E> where
     }
 }
 
-impl<I, T, E> Parser<I> for Fail<T, E> where
-    I: Iterator + Clone,
+impl<Tok, State, T, E> Parser<Tok, State> for Fail<T, E> where
     E: Clone
 {
     type Value = T;
     type Error = E;
-
-    fn parse(&self, _iter: &mut I) -> Result<T, E> {
+    
+    fn parse<I>(&self, _iter: &mut I) -> Result<T, E> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         Err(self.err.clone())
     }
 }
@@ -66,7 +69,7 @@ impl<I, T, E> Parser<I> for Fail<T, E> where
 #[derive(Clone)]
 pub struct Lense<P, F> {
     parser: P,
-    lense: F,
+    lense: F
 }
 
 impl<P, F> Lense<P, F> {
@@ -78,18 +81,20 @@ impl<P, F> Lense<P, F> {
     }
 }
 
-impl<I, J, P, F> Parser<J> for Lense<P, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I>,
-    J: Iterator + Clone,
-    F: Fn(&mut J) -> &mut I
+impl<Tok, State, InternalState, P, F> Parser<Tok, State> for Lense<P, F> where
+    P: SizedParser<Tok, InternalState>,
+    F: Fn(&mut State) -> &mut InternalState
 {
     type Value = P::Value;
     type Error = P::Error;
 
-    fn parse(&self, jter: &mut J) -> Result<P::Value, P::Error> {        
-        let mut iter: &mut I = (self.lense)(jter);
-        self.parser.parse(&mut iter)
+    fn parse<J>(&self, jter: &mut J) -> Result<P::Value, P::Error> where
+        J: StatefulIterator<Item=Tok, State=State> + Clone
+    {
+        let mut iter = SubState::new(jter.clone(), &self.lense);
+        let res = self.parser.parse(&mut iter);
+        *jter = iter.inner();
+        res
     }
 }
 
@@ -108,14 +113,15 @@ impl<P> Attempt<P> {
     }
 }
 
-impl<I, P> Parser<I> for Attempt<P> where
-    I: Iterator + Clone,
-    P: SizedParser<I>
+impl<Tok, State, P> Parser<Tok, State> for Attempt<P> where
+    P: SizedParser<Tok, State>
 {
     type Value = P::Value;
     type Error = P::Error;
     
-    fn parse(&self, iter: &mut I) -> Result<P::Value, P::Error> {
+    fn parse<I>(&self, iter: &mut I) -> Result<P::Value, P::Error> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         self.parser.attempt_parse(iter)
     }
 }
@@ -133,14 +139,15 @@ impl<P> Scry<P> {
     }
 }
 
-impl<I, P> Parser<I> for Scry<P> where
-    I: Iterator + Clone,
-    P: SizedParser<I>
+impl<Tok, State, P> Parser<Tok, State> for Scry<P> where
+    P: SizedParser<Tok, State>
 {
     type Value = P::Value;
     type Error = P::Error;
     
-    fn parse(&self, iter: &mut I) -> Result<P::Value, P::Error> {
+    fn parse<I>(&self, iter: &mut I) -> Result<P::Value, P::Error> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         self.parser.scry_parse(iter)
     }
 }
@@ -158,14 +165,15 @@ impl<P> Backtrack<P> {
     }
 }
 
-impl<I, P> Parser<I> for Backtrack<P> where
-    I: Iterator + Clone,
-    P: SizedParser<I>
+impl<Tok, State, P> Parser<Tok, State> for Backtrack<P> where
+    P: SizedParser<Tok, State>
 {
     type Value = P::Value;
     type Error = P::Error;
     
-    fn parse(&self, iter: &mut I) -> Result<P::Value, P::Error> {
+    fn parse<I>(&self, iter: &mut I) -> Result<P::Value, P::Error> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         self.parser.backtrack_parse(iter)
     }
 }
@@ -187,15 +195,16 @@ impl<P, F> Map<P, F> {
     }
 }
 
-impl<I, P, U, F> Parser<I> for Map<P, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I>,
+impl<Tok, State, P, U, F> Parser<Tok, State> for Map<P, F> where
+    P: SizedParser<Tok, State>,
     F: Fn(P::Value) -> U
 {
     type Value = U;
     type Error = P::Error;
     
-    fn parse(&self, iter: &mut I) -> Result<U, P::Error> {
+    fn parse<I>(&self, iter: &mut I) -> Result<U, P::Error> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         self.parser.parse(iter).map(&self.inner_map)
     }
 }
@@ -215,15 +224,16 @@ impl<P, F> AndThen<P, F> {
     }
 }
 
-impl<I, P, U, F> Parser<I> for AndThen<P, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I>,
+impl<Tok, State, P, U, F> Parser<Tok, State> for AndThen<P, F> where
+    P: SizedParser<Tok, State>,
     F: Fn(P::Value) -> Result<U, P::Error>
 {
     type Value = U;
     type Error = P::Error;
     
-    fn parse(&self, iter: &mut I) -> Result<U, P::Error> {
+    fn parse<I>(&self, iter: &mut I) -> Result<U, P::Error> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         self.parser.parse(iter).and_then(&self.inner_bind)
     }
 }
@@ -243,15 +253,16 @@ impl<P, Q> AndCompose<P, Q> {
     }
 }
 
-impl<I, P, E, Q> Parser<I> for AndCompose<P, Q> where
-    I: Iterator + Clone,
-    P: SizedParser<I, Error=E>,
-    Q: SizedParser<I, Error=E>
+impl<Tok, State, P, E, Q> Parser<Tok, State> for AndCompose<P, Q> where
+    P: SizedParser<Tok, State, Error=E>,
+    Q: SizedParser<Tok, State, Error=E>
 {
     type Value = Q::Value;
     type Error = E;
     
-    fn parse(&self, iter: &mut I) -> Result<Q::Value, E> {
+    fn parse<I>(&self, iter: &mut I) -> Result<Q::Value, E> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         self.parser.parse(iter).and_then(|_|
             self.other.parse(iter)
         )
@@ -273,15 +284,16 @@ impl<P, Q> PreserveAndCompose<P, Q> where {
     }
 }
 
-impl<I, P, E, Q> Parser<I> for PreserveAndCompose<P, Q> where
-    I: Iterator + Clone,
-    P: SizedParser<I, Error=E>,
-    Q: SizedParser<I, Error=E>
+impl<Tok, State, P, E, Q> Parser<Tok, State> for PreserveAndCompose<P, Q> where
+    P: SizedParser<Tok, State, Error=E>,
+    Q: SizedParser<Tok, State, Error=E>
 {
     type Value = P::Value;
     type Error = E;
     
-    fn parse(&self, iter: &mut I) -> Result<P::Value, E> {
+    fn parse<I>(&self, iter: &mut I) -> Result<P::Value, E> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         self.parser.parse(iter).and_then(|t|
             self.other.parse(iter).map(|_| t)
         )
@@ -303,16 +315,17 @@ impl<P, F> AndThenCompose<P, F> {
     }
 }
 
-impl<I, P, E, Q, F> Parser<I> for AndThenCompose<P, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I, Error=E>,
-    Q: SizedParser<I, Error=E>,
+impl<Tok, State, P, E, Q, F> Parser<Tok, State> for AndThenCompose<P, F> where
+    P: SizedParser<Tok, State, Error=E>,
+    Q: SizedParser<Tok, State, Error=E>,
     F: Fn(P::Value) -> Q
 {
     type Value = Q::Value;
     type Error = E;
     
-    fn parse(&self, iter: &mut I) -> Result<Q::Value, E> {
+    fn parse<I>(&self, iter: &mut I) -> Result<Q::Value, E> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         (self.bind)(
             self.parser.parse(iter)?
         ).parse(iter)
@@ -336,15 +349,16 @@ impl<P, O> MapErr<P, O> {
     }
 }
 
-impl<I, P, F, O> Parser<I> for MapErr<P, O> where
-    I: Iterator + Clone,
-    P: SizedParser<I>,
+impl<Tok, State, P, F, O> Parser<Tok, State> for MapErr<P, O> where
+    P: SizedParser<Tok, State>,
     O: Fn(P::Error) -> F
 {
     type Value = P::Value;
     type Error = F;
     
-    fn parse(&self, iter: &mut I) -> Result<P::Value, F> {
+    fn parse<I>(&self, iter: &mut I) -> Result<P::Value, F> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         self.parser.parse(iter).map_err(&self.inner_map)
     }
 }
@@ -364,15 +378,16 @@ impl<P, O> OrElse<P, O> {
     }
 }
 
-impl<I, P, F, O> Parser<I> for OrElse<P, O> where
-    I: Iterator + Clone,
-    P: SizedParser<I>,
+impl<Tok, State, P, F, O> Parser<Tok, State> for OrElse<P, O> where
+    P: SizedParser<Tok, State>,
     O: Fn(P::Error) -> Result<P::Value, F>
 {
     type Value = P::Value;
     type Error = F;
     
-    fn parse(&self, iter: &mut I) -> Result<P::Value, F> {
+    fn parse<I>(&self, iter: &mut I) -> Result<P::Value, F> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         self.parser.parse(iter).or_else(&self.inner_bind)
     }
 }
@@ -392,15 +407,16 @@ impl<P, Q> OrCompose<P, Q> {
     }
 }
 
-impl<I, P, T, Q> Parser<I> for OrCompose<P, Q> where
-    I: Iterator + Clone,
-    P: SizedParser<I, Value=T>,
-    Q: SizedParser<I, Value=T>
+impl<Tok, State, P, T, Q> Parser<Tok, State> for OrCompose<P, Q> where
+    P: SizedParser<Tok, State, Value=T>,
+    Q: SizedParser<Tok, State, Value=T>
 {
     type Value = T;
     type Error = Q::Error;
     
-    fn parse(&self, iter: &mut I) -> Result<T, Q::Error> {
+    fn parse<I>(&self, iter: &mut I) -> Result<T, Q::Error> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         self.parser.parse(iter).or_else(|_|
             self.other.parse(iter)
         )
@@ -422,16 +438,17 @@ impl<P, O> OrElseCompose<P, O> {
     }
 }
 
-impl<I, P, T, Q, O> Parser<I> for OrElseCompose<P, O> where
-    I: Iterator + Clone,
-    P: SizedParser<I, Value=T>,
-    Q: SizedParser<I, Value=T>,
+impl<Tok, State, P, T, Q, O> Parser<Tok, State> for OrElseCompose<P, O> where
+    P: SizedParser<Tok, State, Value=T>,
+    Q: SizedParser<Tok, State, Value=T>,
     O: Fn(P::Error) -> Q
 {
     type Value = T;
     type Error = Q::Error;
     
-    fn parse(&self, iter: &mut I) -> Result<T, Q::Error> {
+    fn parse<I>(&self, iter: &mut I) -> Result<T, Q::Error> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         self.parser.parse(iter).or_else(|e|
             (self.bind)(e).parse(iter)
         )
@@ -455,14 +472,15 @@ impl<P, F> Many<P, F> {
     }
 }
 
-impl<I, P, F> Parser<I> for Many<P, F> where
-    I: Iterator + Clone,
-    P: SizedParser<I>
+impl<Tok, State, P, F> Parser<Tok, State> for Many<P, F> where
+    P: SizedParser<Tok, State>
 {
     type Value = Vec<P::Value>;
     type Error = F;
     
-    fn parse(&self, iter: &mut I) -> Result<Vec<P::Value>, F> {
+    fn parse<I>(&self, iter: &mut I) -> Result<Vec<P::Value>, F> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         let mut values = vec![];
         while let Ok(val) = self.parser.parse(iter) {
             values.push(val)
@@ -484,14 +502,15 @@ impl<P> Some<P> {
     }
 }
 
-impl<I, P> Parser<I> for Some<P> where
-    I: Iterator + Clone,
-    P: SizedParser<I>
+impl<Tok, State, P> Parser<Tok, State> for Some<P> where
+    P: SizedParser<Tok, State>
 {
     type Value = Vec<P::Value>;
     type Error = P::Error;
     
-    fn parse(&self, iter: &mut I) -> Result<Vec<P::Value>, P::Error> {
+    fn parse<I>(&self, iter: &mut I) -> Result<Vec<P::Value>, P::Error> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         let mut values = vec![self.parser.parse(iter)?];
         while let Ok(val) = self.parser.parse(iter) {
             values.push(val)
@@ -515,15 +534,16 @@ impl<P, Q> Least<P, Q> {
     }
 }
 
-impl<I, P, Q> Parser<I> for Least<P, Q> where
-    I: Iterator + Clone,
-    P: SizedParser<I>,
-    Q: SizedParser<I>
+impl<Tok, State, P, Q> Parser<Tok, State> for Least<P, Q> where
+    P: SizedParser<Tok, State>,
+    Q: SizedParser<Tok, State>
 {
     type Value = (Vec<P::Value>, Q::Value);
     type Error = Q::Error;
     
-    fn parse(&self, iter: &mut I) -> Result<(Vec<P::Value>, Q::Value), Q::Error> {
+    fn parse<I>(&self, iter: &mut I) -> Result<(Vec<P::Value>, Q::Value), Q::Error> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         let mut values = vec![];
         let u = loop {
             match self.until.parse(iter) {
@@ -553,15 +573,16 @@ impl<P, Q> Most<P, Q> {
     }
 }
 
-impl<I, P, Q> Parser<I> for Most<P, Q> where
-    I: Iterator + Clone,
-    P: SizedParser<I>,
-    Q: SizedParser<I>
+impl<Tok, State, P, Q> Parser<Tok, State> for Most<P, Q> where
+    P: SizedParser<Tok, State>,
+    Q: SizedParser<Tok, State>
 {
     type Value = (Vec<P::Value>, Q::Value);
     type Error = P::Error;
     
-    fn parse(&self, iter: &mut I) -> Result<(Vec<P::Value>, Q::Value), P::Error> {
+    fn parse<I>(&self, iter: &mut I) -> Result<(Vec<P::Value>, Q::Value), P::Error> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         let mut stack = vec![iter.clone()];
         let mut values = vec![];
         let e = loop {
@@ -609,15 +630,16 @@ impl<P, Q> Continue<P, Q> {
     }
 }
 
-impl<I, P, Q> Parser<I> for Continue<P, Q> where
-    I: Iterator + Clone,
-    P: SizedParser<I>,
-    Q: SizedParser<I, Value=()>
+impl<Tok, State, P, Q> Parser<Tok, State> for Continue<P, Q> where
+    P: SizedParser<Tok, State>,
+    Q: SizedParser<Tok, State, Value=()>
 {
     type Value = Result<P::Value, P::Error>;
     type Error = Q::Error;
     
-    fn parse(&self, iter: &mut I) -> Result<Result<P::Value, P::Error>, Q::Error> {
+    fn parse<I>(&self, iter: &mut I) -> Result<Result<P::Value, P::Error>, Q::Error> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         let res = self.parser.parse(iter);
         self.recover.parse(iter)?;
         Ok(res)
@@ -639,15 +661,16 @@ impl<P, Q> Recover<P, Q> {
     }
 }
 
-impl<I, P, Q> Parser<I> for Recover<P, Q> where
-    I: Iterator + Clone,
-    P: SizedParser<I>,
-    Q: SizedParser<I, Value=()>
+impl<Tok, State, P, Q> Parser<Tok, State> for Recover<P, Q> where
+    P: SizedParser<Tok, State>,
+    Q: SizedParser<Tok, State, Value=()>
 {
     type Value = Result<P::Value, P::Error>;
     type Error = Q::Error;
     
-    fn parse(&self, iter: &mut I) -> Result<Result<P::Value, P::Error>, Q::Error> {
+    fn parse<I>(&self, iter: &mut I) -> Result<Result<P::Value, P::Error>, Q::Error> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         match self.parser.parse(iter) {
             Ok(res) => Ok(Ok(res)),
             Err(e) => self.recover.parse(iter).map(|_| Err(e)),
@@ -668,14 +691,15 @@ impl<P> AbsorbErr<P> {
     }
 }
 
-impl<I, P, T, E> Parser<I> for AbsorbErr<P> where
-    I: Iterator + Clone,
-    P: SizedParser<I, Value=Result<T, E>, Error=E>
+impl<Tok, State, P, T, E> Parser<Tok, State> for AbsorbErr<P> where
+    P: SizedParser<Tok, State, Value=Result<T, E>, Error=E>
 {
     type Value = T;
     type Error = E;
     
-    fn parse(&self, iter: &mut I) -> Result<T, E> {
+    fn parse<I>(&self, iter: &mut I) -> Result<T, E> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         self.parser.parse(iter)?
     }
 }
@@ -695,48 +719,75 @@ impl<'p, P> RefParser<'p, P> {
     }
 }
 
-impl<'p, I, P> Parser<I> for RefParser<'p, P> where
-    I: Iterator + Clone,
-    P: Parser<I>
+impl<'p, Tok, State, P> Parser<Tok, State> for RefParser<'p, P> where
+    P: Parser<Tok, State>
 {
     type Value = P::Value;
     type Error = P::Error;
     
-    fn parse(&self, iter: &mut I) -> Result<P::Value, P::Error> {
+    fn parse<I>(&self, iter: &mut I) -> Result<P::Value, P::Error> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         self.parser.parse(iter)
     }
 }
 
 #[derive(Clone)]
-pub struct ForwardDef<'p, I, T, E> where
-    I: Iterator + Clone
-{
-    parser: OnceCell<&'p dyn Parser<I, Value=T, Error=E>>
+pub struct Arrow<F> {
+    f: F,
 }
 
-impl<'p, I, T, E> ForwardDef<'p, I, T, E> where
-    I: Iterator + Clone
+impl<F> Arrow<F> {
+    pub fn new(f: F) -> Arrow<F> {
+        Arrow {
+            f,
+        }
+    }
+}
+
+impl<Tok, State, T, E, F> Parser<Tok, State> for Arrow<F> where
+    F: Fn(&mut dyn DynCloneStatefulIterator<Item=Tok, State=State>) -> Result<T, E>
 {
-    pub fn new() -> ForwardDef<'p, I, T, E> {
+    type Value = T;
+    type Error = E;
+
+    fn parse<I>(&self, iter: &mut I) -> Result<T, E> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
+        (self.f)(iter)
+    }
+}
+
+pub struct ForwardDef<Tok, State, T, E> {
+    parser: OnceCell<Box<dyn Fn(&mut dyn DynCloneStatefulIterator<Item=Tok, State=State>) -> Result<T, E>>>
+}
+
+impl<Tok, State, T, E> ForwardDef<Tok, State, T, E> {
+    pub fn new() -> ForwardDef<Tok, State, T, E> {
         ForwardDef {
             parser : OnceCell::new()
         }
     }
 
-    pub fn define(&self, parser: &'p impl Parser<I, Value=T, Error=E>) -> Result<(), &'p dyn Parser<I, Value=T, Error=E>> where
+    pub fn define(&self, parser: impl Parser<Tok, State, Value=T, Error=E>) ->
+        Result<(), Box<dyn Fn(&mut dyn DynCloneStatefulIterator<Item=Tok, State=State>) -> Result<T, E>>>
     {
-        self.parser.set(parser)
+        self.parser.set(Box::new(
+            move |iter: &mut dyn DynCloneStatefulIterator<Item=Tok, State=State>| {
+                parser.parse(iter)
+            }
+        ))
     }
 }
 
-impl<'p, I, T, E> Parser<I> for ForwardDef<'p, I, T, E> where
-    I: Iterator + Clone
-{
+impl<Tok, State, T, E> Parser<Tok, State> for ForwardDef<Tok, State, T, E> {
     type Value = T;
     type Error = E;
     
-    fn parse(&self, iter: &mut I) -> Result<T, E> {
-        self.parser.get().unwrap().parse(iter)
+    fn parse<I>(&self, iter: &mut I) -> Result<T, E> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
+        (self.parser.get().unwrap())(iter)
     }
 }
 
@@ -757,14 +808,15 @@ impl<F, E> Apply0<F, E> {
     }
 }
 
-impl<I, F, T, E> Parser<I> for Apply0<F, E> where
-    I: Iterator + Clone,
+impl<Tok, State, F, T, E> Parser<Tok, State> for Apply0<F, E> where
     F: Fn() -> T
 {
     type Value = T;
     type Error = E;
 
-    fn parse(&self, _iter: &mut I) -> Result<T, E> {
+    fn parse<I>(&self, _iter: &mut I) -> Result<T, E> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         Ok(
             (self.f)()
         )
@@ -786,15 +838,16 @@ impl<F, P1> Apply1<F, P1> {
     }
 }
 
-impl<I, F, T, E, P1> Parser<I> for Apply1<F, P1> where
-    I: Iterator + Clone,
-    P1: Parser<I, Error=E>,
+impl<Tok, State, F, T, E, P1> Parser<Tok, State> for Apply1<F, P1> where
+    P1: Parser<Tok, State, Error=E>,
     F: Fn(P1::Value) -> T
 {
     type Value = T;
     type Error = E;
 
-    fn parse(&self, iter: &mut I) -> Result<T, E> {
+    fn parse<I>(&self, iter: &mut I) -> Result<T, E> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         Ok(
             (self.f)(
                 self.p1.parse(iter)?
@@ -820,16 +873,17 @@ impl<F, P1, P2> Apply2<F, P1, P2> {
     }
 }
 
-impl<I, F, T, E, P1, P2> Parser<I> for Apply2<F, P1, P2> where
-    I: Iterator + Clone,
-    P1: Parser<I, Error=E>,
-    P2: Parser<I, Error=E>,
+impl<Tok, State, F, T, E, P1, P2> Parser<Tok, State> for Apply2<F, P1, P2> where
+    P1: Parser<Tok, State, Error=E>,
+    P2: Parser<Tok, State, Error=E>,
     F: Fn(P1::Value, P2::Value) -> T
 {
     type Value = T;
     type Error = E;
 
-    fn parse(&self, iter: &mut I) -> Result<T, E> {
+    fn parse<I>(&self, iter: &mut I) -> Result<T, E> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         Ok(
             (self.f)(
                 self.p1.parse(iter)?,
@@ -858,17 +912,18 @@ impl<F, P1, P2, P3> Apply3<F, P1, P2, P3> {
     }
 }
 
-impl<I, F, T, E, P1, P2, P3> Parser<I> for Apply3<F, P1, P2, P3> where
-    I: Iterator + Clone,
-    P1: Parser<I, Error=E>,
-    P2: Parser<I, Error=E>,
-    P3: Parser<I, Error=E>,
+impl<Tok, State, F, T, E, P1, P2, P3> Parser<Tok, State> for Apply3<F, P1, P2, P3> where
+    P1: Parser<Tok, State, Error=E>,
+    P2: Parser<Tok, State, Error=E>,
+    P3: Parser<Tok, State, Error=E>,
     F: Fn(P1::Value, P2::Value, P3::Value) -> T
 {
     type Value = T;
     type Error = E;
 
-    fn parse(&self, iter: &mut I) -> Result<T, E> {
+    fn parse<I>(&self, iter: &mut I) -> Result<T, E> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         Ok(
             (self.f)(
                 self.p1.parse(iter)?,
@@ -900,18 +955,19 @@ impl<F, P1, P2, P3, P4> Apply4<F, P1, P2, P3, P4> {
     }
 }
 
-impl<I, F, T, E, P1, P2, P3, P4> Parser<I> for Apply4<F, P1, P2, P3, P4> where
-    I: Iterator + Clone,
-    P1: Parser<I, Error=E>,
-    P2: Parser<I, Error=E>,
-    P3: Parser<I, Error=E>,
-    P4: Parser<I, Error=E>,
+impl<Tok, State, F, T, E, P1, P2, P3, P4> Parser<Tok, State> for Apply4<F, P1, P2, P3, P4> where
+    P1: Parser<Tok, State, Error=E>,
+    P2: Parser<Tok, State, Error=E>,
+    P3: Parser<Tok, State, Error=E>,
+    P4: Parser<Tok, State, Error=E>,
     F: Fn(P1::Value, P2::Value, P3::Value, P4::Value) -> T
 {
     type Value = T;
     type Error = E;
 
-    fn parse(&self, iter: &mut I) -> Result<T, E> {
+    fn parse<I>(&self, iter: &mut I) -> Result<T, E> where
+        I: StatefulIterator<Item=Tok, State=State> + Clone
+    {
         Ok(
             (self.f)(
                 self.p1.parse(iter)?,
