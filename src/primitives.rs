@@ -62,3 +62,28 @@ impl<I, T, E> Parser<I> for Fail<T, E> where
         ParseInfo::default().err(self.err.clone())
     }
 }
+
+#[derive(Clone)]
+pub struct Arrow<F> {
+    func: F,
+}
+
+impl<F> Arrow<F> {
+    pub fn new(func: F) -> Arrow<F> {
+        Arrow {
+            func,
+        }
+    }
+}
+
+impl<F, I, T, E> Parser<I> for Arrow<F> where
+    I: Iterator + Clone,
+    F: Fn(&mut I) -> ParseResult<T, E>
+{
+    type Value = T;
+    type Error = E;
+
+    fn parse(&self, iter: &mut I) -> ParseResult<Self::Value, Self::Error> {
+        (self.func)(iter)
+    }
+}
