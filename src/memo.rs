@@ -1,6 +1,6 @@
 
 use super::*;
-use std::{cell::RefCell, collections::*};
+use std::collections::*;
 
 pub trait MemoHandler<I> where
     I: Iterator + Clone,
@@ -57,6 +57,50 @@ impl<I, C, T, E> MemoHandler<I> for MemoSingular<C, T, E> where
     }
 }
 
+#[derive(Default)]
+pub struct SyncMemoSingular<C, T, E> {
+    pair: std::sync::RwLock<Option<(C, ParseResult<T, E>)>>
+}
+
+impl<C, T, E> SyncMemoSingular<C, T, E> {
+    pub fn new(collection: C, p_res: ParseResult<T, E>) -> SyncMemoSingular<C, T, E> {
+        SyncMemoSingular {
+            pair: std::sync::RwLock::new(Some((collection, p_res)))
+        }
+    }
+}
+
+impl<I, C, T, E> MemoHandler<I> for SyncMemoSingular<C, T, E> where
+    I: Iterator + Clone,
+    C: FromIterator<I::Item>,
+    for<'a> &'a C: IntoIterator<Item=&'a I::Item>,
+    I::Item: Eq,
+    T: Clone,
+    E: Clone
+{
+    type Value = T;
+    type Error = E;
+
+    fn learn(&self, iter: I, p_res: ParseResult<T, E>) {
+        *self.pair.write().unwrap() = Some((
+            iter.take(p_res.info.read).collect::<C>(),
+            p_res
+        ))
+    }
+
+    fn recall(&self, mut iter: I) -> Option<ParseResult<T, E>> {
+        self.pair.read().unwrap()
+            .as_ref()
+            .and_then(|(collection, p_res)| {
+                for col_token in collection {
+                    iter.next()
+                        .filter(|token| token == col_token)?;
+                };
+                Some(p_res.clone())
+            })
+    }
+}
+
 pub struct MemoMap<F, K, H> {
     handler_map: std::cell::RefCell<HashMap<K, H>>,
     key_func: F,
@@ -65,7 +109,7 @@ pub struct MemoMap<F, K, H> {
 impl<F, K, H> MemoMap<F, K, H> {
     pub fn new(key_func: F) -> MemoMap<F, K, H> {
         MemoMap {
-            handler_map: RefCell::default(),
+            handler_map: std::cell::RefCell::default(),
             key_func,
         }
     }
@@ -87,13 +131,61 @@ impl<I, F, K, H> MemoHandler<I> for MemoMap<F, K, H> where
         } else {
             let handler = H::default();
             handler.learn(iter, res);
-            self.handler_map.borrow_mut().insert(key, handler).ok_or(()).err().unwrap();
+            self.handler_map.borrow_mut()
+                .insert(key, handler)
+                .ok_or(()).err().unwrap();
         }
     }
 
     fn recall(&self, iter: I) -> Option<ParseResult<Self::Value, Self::Error>> {
         let key = (self.key_func)(&iter);
         self.handler_map.borrow()
+            .get(&key)
+            .and_then(|handler| {
+                handler.recall(iter)
+            })
+    }
+}
+
+pub struct SyncMemoMap<F, K, H> {
+    handler_map: std::sync::RwLock<HashMap<K, H>>,
+    key_func: F,
+}
+
+impl<F, K, H> SyncMemoMap<F, K, H> {
+    pub fn new(key_func: F) -> SyncMemoMap<F, K, H> {
+        SyncMemoMap {
+            handler_map: std::sync::RwLock::default(),
+            key_func,
+        }
+    }
+}
+
+impl<I, F, K, H> MemoHandler<I> for SyncMemoMap<F, K, H> where
+    I: Iterator + Clone,
+    F: Fn(&I) -> K,
+    K: Eq + std::hash::Hash,
+    H: MemoHandler<I> + Default
+{
+    type Value = H::Value;
+    type Error = H::Error;
+
+    fn learn(&self, iter: I, res: ParseResult<Self::Value, Self::Error>) {
+        let key = (self.key_func)(&iter);
+        if let Some(handler) = self.handler_map.read().unwrap().get(&key) {
+            handler.learn(iter, res);
+        } else {
+            let handler = H::default();
+            handler.learn(iter, res);
+            self.handler_map.write().unwrap()
+                .insert(key, handler)
+                .ok_or(()).err().unwrap();
+        }
+    }
+
+    fn recall(&self, iter: I) -> Option<ParseResult<Self::Value, Self::Error>> {
+        let key = (self.key_func)(&iter);
+        self.handler_map.read().unwrap()
             .get(&key)
             .and_then(|handler| {
                 handler.recall(iter)
