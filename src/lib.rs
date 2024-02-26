@@ -5,6 +5,7 @@
 mod tests;
 pub mod combinators;
 pub mod errors;
+pub mod memo;
 
 use combinators::*;
 
