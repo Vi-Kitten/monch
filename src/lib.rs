@@ -56,6 +56,7 @@ impl std::ops::AddAssign for ParseInfo {
     }
 }
 
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct ParseResult<T, E> {
     info: ParseInfo,
     result: Result<T, E>,
@@ -145,6 +146,15 @@ pub trait SizedParser<I>: Parser<I> where
     I: Iterator + Clone,
     Self: Sized
 {
+    fn memo<H>(self, handler: H) -> memo::Memo<Self, H> where
+        H: memo::MemoHandler<I, Value=Self::Value, Error=Self::Error>,
+        Self::Value: Clone,
+        Self::Error: Clone
+    {
+        memo::Memo::new(self, handler)
+    }
+        
+
     fn reference<'p>(&'p self) -> RefParser<'_, Self> {
         RefParser::new(self)
     }
