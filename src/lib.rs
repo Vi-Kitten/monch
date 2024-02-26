@@ -8,7 +8,7 @@ pub mod errors;
 
 use combinators::*;
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub struct ParseInfo {
     pub taken: usize,
     pub read: usize,

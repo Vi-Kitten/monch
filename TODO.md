@@ -1,4 +1,4 @@
-# Future Refactors and Abstractions
+# Future Refactors, Abstractions and Overall Objectives
 
 - [ ] Test ParserInfo for parser combinators
 
@@ -9,3 +9,4 @@
 - [ ] Create primitives.rs for leaf parsers, maybe move Wrap and Fail into there
 - [x] Create errors.rs for handling errors and providing a specific error type
     - [ ] Populate errors.rs with error utilities
+- [ ] Test the until parsers EXTENSIVELY
