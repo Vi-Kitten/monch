@@ -1,67 +1,5 @@
-use std::{cell::OnceCell, marker::PhantomData};
+use std::marker::PhantomData;
 use super::*;
-
-#[derive(Clone)]
-pub struct Wrap<T, E> where
-    T: Clone
-{
-    val: T,
-    _e: PhantomData<E>,
-}
-
-impl<T, E> Wrap<T, E> where
-    T: Clone
-{
-    pub fn new(val: T) -> Wrap<T, E> {
-        Wrap{
-            val,
-            _e: PhantomData,
-        }
-    }
-}
-
-impl<I, T, E> Parser<I> for Wrap<T, E> where
-    I: Iterator + Clone,
-    T: Clone
-{
-    type Value = T;
-    type Error = E;
-    
-    fn parse(&self, _iter: &mut I) -> ParseResult<T, E> {
-        ParseInfo::default().ok(self.val.clone())
-    }
-}
-
-#[derive(Clone)]
-pub struct Fail<T, E> where
-    E: Clone
-{
-    err: E,
-    _t: PhantomData<T>,
-}
-
-impl<T, E> Fail<T, E> where
-    E: Clone
-{
-    pub fn new(err: E) -> Fail<T, E> {
-        Fail{
-            err,
-            _t: PhantomData,
-        }
-    }
-}
-
-impl<I, T, E> Parser<I> for Fail<T, E> where
-    I: Iterator + Clone,
-    E: Clone
-{
-    type Value = T;
-    type Error = E;
-
-    fn parse(&self, _iter: &mut I) -> ParseResult<T, E> {
-        ParseInfo::default().err(self.err.clone())
-    }
-}
 
 #[derive(Clone)]
 pub struct Lense<P, F> {
@@ -799,7 +737,7 @@ impl<'p, I, P> Parser<I> for RefParser<'p, P> where
 pub struct ForwardDef<'p, I, T, E> where
     I: Iterator + Clone
 {
-    parser: OnceCell<&'p dyn Parser<I, Value=T, Error=E>>
+    parser: std::cell::OnceCell<&'p dyn Parser<I, Value=T, Error=E>>
 }
 
 impl<'p, I, T, E> ForwardDef<'p, I, T, E> where
@@ -807,7 +745,7 @@ impl<'p, I, T, E> ForwardDef<'p, I, T, E> where
 {
     pub fn new() -> ForwardDef<'p, I, T, E> {
         ForwardDef {
-            parser : OnceCell::new()
+            parser : std::cell::OnceCell::new()
         }
     }
 
@@ -818,6 +756,39 @@ impl<'p, I, T, E> ForwardDef<'p, I, T, E> where
 }
 
 impl<'p, I, T, E> Parser<I> for ForwardDef<'p, I, T, E> where
+    I: Iterator + Clone
+{
+    type Value = T;
+    type Error = E;
+    
+    fn parse(&self, iter: &mut I) -> ParseResult<T, E> {
+        self.parser.get().unwrap().parse(iter)
+    }
+}
+
+#[derive(Clone)]
+pub struct SyncForwardDef<'p, I, T, E> where
+    I: Iterator + Clone
+{
+    parser: std::sync::OnceLock<&'p dyn Parser<I, Value=T, Error=E>>
+}
+
+impl<'p, I, T, E> SyncForwardDef<'p, I, T, E> where
+    I: Iterator + Clone
+{
+    pub fn new() -> SyncForwardDef<'p, I, T, E> {
+        SyncForwardDef {
+            parser : std::sync::OnceLock::new()
+        }
+    }
+
+    pub fn define(&self, parser: &'p impl Parser<I, Value=T, Error=E>) -> Result<(), &'p dyn Parser<I, Value=T, Error=E>> where
+    {
+        self.parser.set(parser)
+    }
+}
+
+impl<'p, I, T, E> Parser<I> for SyncForwardDef<'p, I, T, E> where
     I: Iterator + Clone
 {
     type Value = T;

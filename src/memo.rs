@@ -228,3 +228,44 @@ impl<I, P, H, T, E> Parser<I> for Memo<P, H> where
         p_res
     }
 }
+
+#[derive(Clone)]
+pub struct MemoIf<P, H, F> {
+    parser: P,
+    handler: H,
+    predicate: F,
+}
+
+impl<P, H, F> MemoIf<P, H, F> {
+    pub fn new(parser: P, handler: H, predicate: F) -> MemoIf<P, H, F> {
+        MemoIf {
+            parser,
+            handler,
+            predicate,
+        }
+    }
+}
+
+impl<I, P, H, F, T, E> Parser<I> for MemoIf<P, H, F> where
+    I: Iterator + Clone,
+    P: Parser<I, Value=T, Error=E>,
+    H: MemoHandler<I, Value=T, Error=E>,
+    F: Fn(&ParseResult<T, E>) -> bool,
+    T: Clone,
+    E: Clone
+{
+    type Value = T;
+    type Error = E;
+
+    fn parse(&self, iter: &mut I) -> ParseResult<T, E> {
+        if let Some(p_res) = self.handler.recall(iter.clone()) {
+            return p_res;
+        }
+        let start_iter = iter.clone();
+        let p_res = self.parser.parse(iter);
+        if (self.predicate)(&p_res) {
+            self.handler.learn(start_iter, p_res.clone());
+        }
+        p_res
+    }
+}

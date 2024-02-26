@@ -4,10 +4,12 @@
 #[cfg(test)]
 mod tests;
 pub mod combinators;
-pub mod errors;
+pub mod primitives;
+pub mod errors; 
 pub mod memo;
 
 use combinators::*;
+use primitives::*;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub struct ParseInfo {
@@ -153,7 +155,15 @@ pub trait SizedParser<I>: Parser<I> where
     {
         memo::Memo::new(self, handler)
     }
-        
+
+    fn memo_if<H, F>(self, handler: H, predicate: F) -> memo::MemoIf<Self, H, F> where
+        H: memo::MemoHandler<I, Value=Self::Value, Error=Self::Error>,
+        F: Fn(&ParseResult<Self::Value, Self::Error>) -> bool,
+        Self::Value: Clone,
+        Self::Error: Clone
+    {
+        memo::MemoIf::new(self, handler, predicate)
+    }
 
     fn reference<'p>(&'p self) -> RefParser<'_, Self> {
         RefParser::new(self)
