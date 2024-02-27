@@ -69,31 +69,54 @@ pub trait Parser<I> where
     fn attempt_parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<Self::Value, Self::Error> {
         let mut inner_info = ParseInfo::default();
         let backup = iter.clone();
-        self.parse(iter, &mut inner_info).map_err(|err| {
-            *iter = backup;
-            inner_info.taken = 0;
-            *info += inner_info;
-            err
-        })
+        match self.parse(iter, &mut inner_info) {
+            Ok(val) => {
+                *info += inner_info;
+                Ok(val)
+            },
+            Err(err) => {
+                *iter = backup;
+                inner_info.taken = 0;
+                *info = inner_info;
+                Err(err)
+            }
+        }
     }
 
     fn scry_parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<Self::Value, Self::Error> {
         let mut inner_info = ParseInfo::default();
         let backup = iter.clone();
-        self.parse(iter, &mut inner_info).map(|val| {
-            *iter = backup;
-            inner_info.taken = 0;
-            *info += inner_info;
-            val
-        })
+        match self.parse(iter, &mut inner_info) {
+            Ok(val) => {
+                *iter = backup;
+                inner_info.taken = 0;
+                *info += inner_info;
+                Ok(val)
+            },
+            Err(err) => {
+                *info = inner_info;
+                Err(err)
+            }
+        }
     }
 
     fn backtrack_parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<Self::Value, Self::Error> {
         let mut inner_info = ParseInfo::default();
-        let res = self.parse(&mut iter.clone(), &mut inner_info);
-        info.taken = 0;
-        *info += inner_info; 
-        res
+        let backup = iter.clone();
+        match self.parse(iter, &mut inner_info) {
+            Ok(val) => {
+                *iter = backup;
+                inner_info.taken = 0;
+                *info += inner_info;
+                Ok(val)
+            },
+            Err(err) => {
+                *iter = backup;
+                inner_info.taken = 0;
+                *info = inner_info;
+                Err(err)
+            }
+        }
     }
 }
 

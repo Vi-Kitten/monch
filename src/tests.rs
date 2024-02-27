@@ -23,13 +23,13 @@ impl<I> Parser<I> for Expect where
     type Value = String;
     type Error = String;
 
-    fn parse(&self, iter: &mut I) -> ParseResult<String, String> {
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<String, String> {
         let found = iter.take(self.expect.len()).collect::<String>();
-        let info = ParseInfo::new(found.len(), self.expect.len());
+        *info += ParseInfo::new(found.len(), self.expect.len());
         if found == self.expect {
-            info.ok(self.expect.clone())
+            Ok(self.expect.clone())
         } else {
-            info.err(self.err.clone())
+            Err(self.err.clone())
         }
     }
 }
@@ -62,11 +62,13 @@ impl<I> Parser<I> for ExpectEnd where
     type Value = ();
     type Error = String;
 
-    fn parse(&self, iter: &mut I) -> ParseResult<(), String> {
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<(), String> {
         if let None = iter.next() {
-            ParseInfo::new(0, 1).ok(())
+            *info += ParseInfo::new(0, 1);
+            Ok(())
         } else {
-            ParseInfo::new(1, 1).err(self.err.clone())
+            *info += ParseInfo::new(1, 1);
+            Err(self.err.clone())
         }
     }
 }
@@ -85,7 +87,7 @@ fn test_parse() {
     let mut info = ParseInfo::default();
     assert_eq!(
         expect("abc", "test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok("abc".into())
     );
     assert_eq!(
@@ -96,7 +98,7 @@ fn test_parse() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -112,7 +114,7 @@ fn test_wrap() {
     let mut info = ParseInfo::default();
     assert_eq!(
         wrap::<_, !>("abc".into())
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok("abc")
     );
     assert_eq!(
@@ -123,7 +125,7 @@ fn test_wrap() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_faileure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -139,7 +141,7 @@ fn test_fail() {
     let mut info = ParseInfo::default();
     assert_eq!(
         fail::<!, _>(format!("err"))
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Err("err".into())
     );
     assert_eq!(
@@ -150,7 +152,7 @@ fn test_fail() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -167,7 +169,7 @@ fn test_discard() {
     assert_eq!(
         expect("abc", "test_failure")
         .discard()
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -178,7 +180,7 @@ fn test_discard() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -220,7 +222,7 @@ fn test_lense() {
     assert_eq!(
         expect("abc", "test_failure")
         .lense(WrappedIter::get_mut)
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok("abc".into())
     );
     assert_eq!(
@@ -231,7 +233,7 @@ fn test_lense() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -251,7 +253,7 @@ fn test_attempt() {
     assert_eq!(
         expect("def", "err")
         .attempt()
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Err("err".into())
     );
     assert_eq!(
@@ -263,7 +265,7 @@ fn test_attempt() {
     assert_eq!(
         expect("abc", "test_failure")
         .attempt()
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok("abc".into())
     );
     assert_eq!(
@@ -275,7 +277,7 @@ fn test_attempt() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -291,7 +293,7 @@ fn test_attempt_parse() {
     let mut info = ParseInfo::default();
     assert_eq!(
         expect("def", "err")
-        .attempt_parse(&mut iter).record_to(&mut info),
+        .attempt_parse(&mut iter, &mut info),
         Err("err".into())
     );
     assert_eq!(
@@ -302,7 +304,7 @@ fn test_attempt_parse() {
     info = ParseInfo::default();
     assert_eq!(
         expect("abc", "test_failure")
-        .attempt_parse(&mut iter).record_to(&mut info),
+        .attempt_parse(&mut iter, &mut info),
         Ok("abc".into())
     );
     assert_eq!(
@@ -313,7 +315,7 @@ fn test_attempt_parse() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -331,7 +333,7 @@ fn test_scry() {
     assert_eq!(
         expect("abc", "test_failure")
         .scry()
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok("abc".into())
     );
     assert_eq!(
@@ -343,7 +345,7 @@ fn test_scry() {
     assert_eq!(
         expect("def", "err")
         .scry()
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Err("err".into())
     );
     assert_eq!(
@@ -354,7 +356,7 @@ fn test_scry() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -370,7 +372,7 @@ fn test_scry_parse() {
     let mut info = ParseInfo::default();
     assert_eq!(
         expect("abc", "test_failure")
-        .scry_parse(&mut iter).record_to(&mut info),
+        .scry_parse(&mut iter, &mut info),
         Ok("abc".into())
     );
     assert_eq!(
@@ -381,7 +383,7 @@ fn test_scry_parse() {
     info = ParseInfo::default();
     assert_eq!(
         expect("def", "err")
-        .scry_parse(&mut iter).record_to(&mut info),
+        .scry_parse(&mut iter, &mut info),
         Err("err".into())
     );
     assert_eq!(
@@ -392,7 +394,7 @@ fn test_scry_parse() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -410,7 +412,7 @@ fn test_backtrack() {
     assert_eq!(
         expect("abc", "test_failure")
         .backtrack()
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok("abc".into())
     );
     assert_eq!(
@@ -422,7 +424,7 @@ fn test_backtrack() {
     assert_eq!(
         expect("def", "err")
         .backtrack()
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Err("err".into())
     );
     assert_eq!(
@@ -433,7 +435,7 @@ fn test_backtrack() {
     info = ParseInfo::default();
     assert_eq!(
         expect("abc", "test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok("abc".into())
     );
     assert_eq!(
@@ -444,7 +446,7 @@ fn test_backtrack() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -460,7 +462,7 @@ fn test_backtrack_parse() {
     let mut info = ParseInfo::default();
     assert_eq!(
         expect("abc", "test_failure")
-        .backtrack_parse(&mut iter).record_to(&mut info),
+        .backtrack_parse(&mut iter, &mut info),
         Ok("abc".into())
     );
     assert_eq!(
@@ -471,7 +473,7 @@ fn test_backtrack_parse() {
     info = ParseInfo::default();
     assert_eq!(
         expect("def", "err")
-        .backtrack_parse(&mut iter).record_to(&mut info),
+        .backtrack_parse(&mut iter, &mut info),
         Err("err".into())
     );
     assert_eq!(
@@ -482,7 +484,7 @@ fn test_backtrack_parse() {
     info = ParseInfo::default();
     assert_eq!(
         expect("abc", "test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok("abc".into())
     );
     assert_eq!(
@@ -493,7 +495,7 @@ fn test_backtrack_parse() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -512,7 +514,7 @@ fn test_map() {
     assert_eq!(
         expect("abc", "test_failure")
         .map(|s| s.to_uppercase())
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(format!("ABC"))
     );
     assert_eq!(
@@ -523,7 +525,7 @@ fn test_map() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -540,7 +542,7 @@ fn test_and_then() {
     assert_eq!(
         expect("abc", "test_failure")
         .and_then(|s| Ok(s.to_uppercase()))
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok("ABC".into())
     );
     assert_eq!(
@@ -551,7 +553,7 @@ fn test_and_then() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -568,7 +570,7 @@ fn test_and_compose() {
     assert_eq!(
         expect("abc", "test_failure_0")
         .and_compose(expect("def", "test_failure_1"))
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok("def".into())
     );
     assert_eq!(
@@ -579,7 +581,7 @@ fn test_and_compose() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -596,7 +598,7 @@ fn test_preserve_and_compose() {
     assert_eq!(
         expect("abc", "test_failure_0")
         .preserve_and_compose(expect("def", "test_failure_1"))
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok("abc".into())
     );
     assert_eq!(
@@ -607,7 +609,7 @@ fn test_preserve_and_compose() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -626,7 +628,7 @@ fn test_and_then_compose() {
         .and_then_compose(
             |s| expect(s.to_uppercase(), "test_failure_1")
         )
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok("ABC".into())
     );
     assert_eq!(
@@ -637,7 +639,7 @@ fn test_and_then_compose() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -656,7 +658,7 @@ fn test_map_err() {
     assert_eq!(
         expect("abc", "err")
         .map_err(|e| e.to_uppercase())
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Err("ERR".into())
     );
     assert_eq!(
@@ -667,7 +669,7 @@ fn test_map_err() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -684,7 +686,7 @@ fn test_or_else() {
     assert_eq!(
         expect("abc", "err")
         .or_else(|e| Err(e.to_uppercase()))
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Err("ERR".into())
     );
     assert_eq!(
@@ -695,7 +697,7 @@ fn test_or_else() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -712,7 +714,7 @@ fn test_or_compose() {
     assert_eq!(
         expect("abc", "err")
         .or_compose(expect("ghi", "test_failure"))
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok("ghi".into())
     );
     assert_eq!(
@@ -723,7 +725,7 @@ fn test_or_compose() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -740,7 +742,7 @@ fn test_or_else_compose() {
     assert_eq!(
         expect("abc", "err")
         .or_else_compose(|e| expect("def", e))
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Err("err".into())
     );
     assert_eq!(
@@ -752,7 +754,7 @@ fn test_or_else_compose() {
     assert_eq!(
         expect("jkl", "test_failure")
         .or_else_compose(|e| expect("mno", e))
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok("jkl".into())
     );
     assert_eq!(
@@ -763,7 +765,7 @@ fn test_or_else_compose() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -783,7 +785,7 @@ fn test_many() {
         expect("abc", "test_failure")
         .many()
         .map_err::<!, _>(|_: !| unreachable!())
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(vec!["abc".into(), "abc".into()])
     );
     assert_eq!(
@@ -794,7 +796,7 @@ fn test_many() {
     info = ParseInfo::default();
     assert_eq!(
         expect("ghi", "test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok("ghi".into())
     );
     assert_eq!(
@@ -805,7 +807,7 @@ fn test_many() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -822,7 +824,7 @@ fn test_some() {
     assert_eq!(
         expect("abc", "err")
         .some()
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Err("err".into())
     );
     assert_eq!(
@@ -834,7 +836,7 @@ fn test_some() {
     assert_eq!(
         expect("ghi", "test_failure")
         .some()
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(vec!["ghi".into(), "ghi".into()])
     );
     assert_eq!(
@@ -845,7 +847,7 @@ fn test_some() {
     info = ParseInfo::default();
     assert_eq!(
         expect("mno", "test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok("mno".into())
     );
     assert_eq!(
@@ -856,7 +858,7 @@ fn test_some() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -873,7 +875,7 @@ fn test_least_until() {
     assert_eq!(
         expect("abc", "test_failure")
         .least_until(expect(":", "err"))
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Err("err".into())
     );
     assert_eq!(
@@ -885,7 +887,7 @@ fn test_least_until() {
     assert_eq!(
         expect("def", "test_failure_0")
         .least_until(expect(":", "test_failure_1"))
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok((vec!["def".into(), "def".into()], ":".into()))
     );
     assert_eq!(
@@ -896,7 +898,7 @@ fn test_least_until() {
     info = ParseInfo::default();
     assert_eq!(
         expect("ghi", "test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok("ghi".into())
     );
     assert_eq!(
@@ -907,7 +909,7 @@ fn test_least_until() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -924,7 +926,7 @@ fn test_most_until() {
     assert_eq!(
         expect("abc", "test_failure_0")
         .most_until(expect("def", "test_failure_1"))
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok((vec!["abc".into(), "abc".into()], "def".into()))
     );
     assert_eq!(
@@ -935,7 +937,7 @@ fn test_most_until() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -954,7 +956,7 @@ fn test_continue_with() {
     assert_eq!(
         expect("abc", "test_failure_0")
         .continue_with(expect("def", "test_failure_1").discard())
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(Ok("abc".into()))
     );
     assert_eq!(
@@ -966,7 +968,7 @@ fn test_continue_with() {
     assert_eq!(
         expect("def", "err")
         .continue_with(expect("jkl", "test_failure").discard())
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(Err("err".into()))
     );
     assert_eq!(
@@ -977,7 +979,7 @@ fn test_continue_with() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -994,7 +996,7 @@ fn test_recover_with() {
     assert_eq!(
         expect("abc", "test_failure_0")
         .recover_with(expect("def", "test_failure_1").discard())
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(Ok("abc".into()))
     );
     assert_eq!(
@@ -1006,7 +1008,7 @@ fn test_recover_with() {
     assert_eq!(
         expect("abc", "err")
         .recover_with(expect("ghi", "test_failure").discard())
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(Err("err".into()))
     );
     assert_eq!(
@@ -1017,7 +1019,7 @@ fn test_recover_with() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -1035,7 +1037,7 @@ fn test_absorb_err() {
         expect("abc", "test_failure")
         .map(Result::Ok)
         .absorb_err()
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok("abc".into())
     );
     assert_eq!(
@@ -1048,7 +1050,7 @@ fn test_absorb_err() {
         expect("def", "test_failure")
         .map(|_| Err("err".into()))
         .absorb_err::<!>()
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Err("err".into())
     );
     assert_eq!(
@@ -1059,7 +1061,7 @@ fn test_absorb_err() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -1102,7 +1104,7 @@ fn test_recursive_capability() {
     let mut info = ParseInfo::default();
     assert_eq!(
         expr_parser
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(
             Abc
         )
@@ -1115,7 +1117,7 @@ fn test_recursive_capability() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -1128,7 +1130,7 @@ fn test_recursive_capability() {
     let mut info = ParseInfo::default();
     assert_eq!(
         expr_parser
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(
             Exprs(vec![
                 Abc,
@@ -1145,7 +1147,7 @@ fn test_recursive_capability() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -1158,7 +1160,7 @@ fn test_recursive_capability() {
     let mut info = ParseInfo::default();
     assert_eq!(
         expr_parser
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(
             Exprs(vec![
                 Abc,
@@ -1179,7 +1181,7 @@ fn test_recursive_capability() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
@@ -1201,7 +1203,7 @@ fn test_apply_macro() {
             expect("ghi", "test_failure_2")
 
         )
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(("abc".into(), "def".into(), "ghi".into()))
     );
     assert_eq!(
@@ -1212,7 +1214,7 @@ fn test_apply_macro() {
     info = ParseInfo::default();
     assert_eq!(
         expect_end("test_failure")
-        .parse(&mut iter).record_to(&mut info),
+        .parse(&mut iter, &mut info),
         Ok(())
     );
     assert_eq!(
