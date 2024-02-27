@@ -27,8 +27,8 @@ impl<I, T, E> Parser<I> for Wrap<T, E> where
     type Value = T;
     type Error = E;
     
-    fn parse(&self, _iter: &mut I) -> ParseResult<T, E> {
-        ParseInfo::default().ok(self.val.clone())
+    fn parse(&self, _iter: &mut I, _info: &mut ParseInfo) -> Result<T, E> {
+        Ok(self.val.clone())
     }
 }
 
@@ -58,8 +58,8 @@ impl<I, T, E> Parser<I> for Fail<T, E> where
     type Value = T;
     type Error = E;
 
-    fn parse(&self, _iter: &mut I) -> ParseResult<T, E> {
-        ParseInfo::default().err(self.err.clone())
+    fn parse(&self, _iter: &mut I, _info: &mut ParseInfo) -> Result<T, E> {
+        Err(self.err.clone())
     }
 }
 
@@ -83,20 +83,17 @@ impl<I, T, const N: usize> Parser<I> for ExpectTokens<T, N> where
     type Value = [T; N];
     type Error = [T; N];
 
-    fn parse(&self, iter: &mut I) -> ParseResult<[T; N], [T; N]> {
-        let mut info = ParseInfo::new(0, N);
-        let res = (|| Some({
-            for expected_token in &self.expect {
-                iter.next()
-                    .filter(|found_token| {
-                        info.taken += 1;
-                        found_token == expected_token
-                    })?;
-            }
-        }))()
-            .map(|_| self.expect.clone())
-            .ok_or_else(|| self.expect.clone());
-        info.with(res)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<[T; N], [T; N]> {
+        info.read += N;
+        for expected_token in &self.expect {
+            iter.next()
+                .filter(|found_token| {
+                    info.taken += 1;
+                    found_token == expected_token
+                })
+                .ok_or_else(|| self.expect.clone())?;
+        };
+        Ok(self.expect.clone())
     }
 }
 
@@ -125,22 +122,18 @@ impl<I, S, B> Parser<I> for Region<S, B> where
     type Value = B::Value;
     type Error = Result<super::errors::BranchInternalError<B::Error>, super::errors::BranchEntryError<S::Error>>;
 
-    fn parse(&self, iter: &mut I) -> ParseResult<Self::Value, Self::Error> {
-        let mut info = ParseInfo::default();
-        let res = self.start
-            .parse(iter)
-            .record_to(&mut info)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<Self::Value, Self::Error> {
+        self.start
+            .parse(iter, info)
             .map_err(|err|
                 Result::Err(super::errors::BranchEntryError(self.name.clone(), err))
             )
             .and_then(|_| self.body
-                .parse(iter)
-                .record_to(&mut info)
+                .parse(iter, info)
                 .map_err(|err|
                     Result::Ok(super::errors::BranchInternalError(self.name.clone(), err))
                 )
-            );
-        info.with(res)
+            )
     }
 }
 
@@ -159,12 +152,12 @@ impl<F> Arrow<F> {
 
 impl<F, I, T, E> Parser<I> for Arrow<F> where
     I: Iterator + Clone,
-    F: Fn(&mut I) -> ParseResult<T, E>
+    F: Fn(&mut I, &mut ParseInfo) -> Result<T, E>
 {
     type Value = T;
     type Error = E;
 
-    fn parse(&self, iter: &mut I) -> ParseResult<Self::Value, Self::Error> {
-        (self.func)(iter)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<Self::Value, Self::Error> {
+        (self.func)(iter, info)
     }
 }

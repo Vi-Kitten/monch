@@ -25,9 +25,9 @@ impl<I, J, P, F> Parser<J> for Lense<P, F> where
     type Value = P::Value;
     type Error = P::Error;
 
-    fn parse(&self, jter: &mut J) -> ParseResult<P::Value, P::Error> {        
+    fn parse(&self, jter: &mut J, info: &mut ParseInfo) -> Result<P::Value, P::Error> {        
         let mut iter: &mut I = (self.lense)(jter);
-        self.parser.parse(&mut iter)
+        self.parser.parse(&mut iter, info)
     }
 }
 
@@ -53,8 +53,8 @@ impl<I, P> Parser<I> for Attempt<P> where
     type Value = P::Value;
     type Error = P::Error;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<P::Value, P::Error> {
-        self.parser.attempt_parse(iter)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<P::Value, P::Error> {
+        self.parser.attempt_parse(iter, info)
     }
 }
 
@@ -78,8 +78,8 @@ impl<I, P> Parser<I> for Scry<P> where
     type Value = P::Value;
     type Error = P::Error;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<P::Value, P::Error> {
-        self.parser.scry_parse(iter)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<P::Value, P::Error> {
+        self.parser.scry_parse(iter, info)
     }
 }
 
@@ -103,8 +103,8 @@ impl<I, P> Parser<I> for Backtrack<P> where
     type Value = P::Value;
     type Error = P::Error;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<P::Value, P::Error> {
-        self.parser.backtrack_parse(iter)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<P::Value, P::Error> {
+        self.parser.backtrack_parse(iter, info)
     }
 }
 
@@ -133,12 +133,10 @@ impl<I, P, U, F> Parser<I> for Map<P, F> where
     type Value = U;
     type Error = P::Error;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<U, P::Error> {
-        let mut info = ParseInfo::default();
-        let res = self.parser
-            .parse(iter).record_to(&mut info)
-            .map(&self.inner_map);
-        info.with(res)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<U, P::Error> {
+        self.parser
+            .parse(iter, info)
+            .map(&self.inner_map)
     }
 }
 
@@ -165,12 +163,10 @@ impl<I, P, U, F> Parser<I> for AndThen<P, F> where
     type Value = U;
     type Error = P::Error;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<U, P::Error> {
-        let mut info = ParseInfo::default();
-        let res = self.parser
-            .parse(iter).record_to(&mut info)
-            .and_then(&self.inner_bind);
-        info.with(res)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<U, P::Error> {
+        self.parser
+            .parse(iter, info)
+            .and_then(&self.inner_bind)
     }
 }
 
@@ -197,15 +193,12 @@ impl<I, P, E, Q> Parser<I> for AndCompose<P, Q> where
     type Value = Q::Value;
     type Error = E;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<Q::Value, E> {
-        let mut info = ParseInfo::default();
-        let res = self.parser
-            .parse(iter).record_to(&mut info)
-            .and_then(|_|
-                self.other
-                .parse(iter).record_to(&mut info)
-            );
-        info.with(res)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<Q::Value, E> {
+        self.parser
+            .parse(iter, info)
+            .and_then(|_| self.other
+                .parse(iter, info)
+            )
     }
 }
 
@@ -232,16 +225,13 @@ impl<I, P, E, Q> Parser<I> for PreserveAndCompose<P, Q> where
     type Value = P::Value;
     type Error = E;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<P::Value, E> {
-        let mut info = ParseInfo::default();
-        let res = self.parser
-            .parse(iter).record_to(&mut info)
-            .and_then(|t|
-                self.other
-                .parse(iter).record_to(&mut info)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<P::Value, E> {
+        self.parser
+            .parse(iter, info)
+            .and_then(|t| self.other
+                .parse(iter, info)
                 .map(|_| t)
-            );
-        info.with(res)
+            )
     }
 }
 
@@ -269,15 +259,13 @@ impl<I, P, E, Q, F> Parser<I> for AndThenCompose<P, F> where
     type Value = Q::Value;
     type Error = E;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<Q::Value, E> {
-        let mut info = ParseInfo::default();
-        let res = self.parser
-            .parse(iter).record_to(&mut info)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<Q::Value, E> {
+        self.parser
+            .parse(iter, info)
             .and_then(|val|
                 (self.bind)(val)
-                .parse(iter).record_to(&mut info)
-            );
-        info.with(res)
+                .parse(iter, info)
+            )
     }
 }
 
@@ -306,12 +294,10 @@ impl<I, P, F, O> Parser<I> for MapErr<P, O> where
     type Value = P::Value;
     type Error = F;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<P::Value, F> {
-        let mut info = ParseInfo::default();
-        let res = self.parser
-            .parse(iter).record_to(&mut info)
-            .map_err(&self.inner_map);
-        info.with(res)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<P::Value, F> {
+        self.parser
+            .parse(iter, info)
+            .map_err(&self.inner_map)
     }
 }
 
@@ -338,12 +324,10 @@ impl<I, P, F, O> Parser<I> for OrElse<P, O> where
     type Value = P::Value;
     type Error = F;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<P::Value, F> {
-        let mut info = ParseInfo::default();
-        let res = self.parser
-            .parse(iter).record_to(&mut info)
-            .or_else(&self.inner_bind);
-        info.with(res)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<P::Value, F> {
+        self.parser
+            .parse(iter, info)
+            .or_else(&self.inner_bind)
     }
 }
 
@@ -370,15 +354,13 @@ impl<I, P, T, Q> Parser<I> for OrCompose<P, Q> where
     type Value = T;
     type Error = Q::Error;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<T, Q::Error> {
-        let mut info = ParseInfo::default();
-        let res = self.parser
-            .parse(iter).record_to(&mut info)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<T, Q::Error> {
+        self.parser
+            .parse(iter, info)
             .or_else(|_|
                 self.other
-                .parse(iter).record_to(&mut info)
-            );
-        info.with(res)
+                .parse(iter, info)
+            )
     }
 }
 
@@ -406,15 +388,13 @@ impl<I, P, T, Q, O> Parser<I> for OrElseCompose<P, O> where
     type Value = T;
     type Error = Q::Error;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<T, Q::Error> {
-        let mut info = ParseInfo::default();
-        let res = self.parser
-            .parse(iter).record_to(&mut info)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<T, Q::Error> {
+        self.parser
+            .parse(iter, info)
             .or_else(|e|
                 (self.bind)(e)
-                .parse(iter).record_to(&mut info)
-            );
-        info.with(res)
+                .parse(iter, info)
+            )
     }
 }
 
@@ -442,14 +422,13 @@ impl<I, P, F> Parser<I> for Many<P, F> where
     type Value = Vec<P::Value>;
     type Error = F;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<Vec<P::Value>, F> {
-        let mut info = ParseInfo::default();
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<Vec<P::Value>, F> {
         let mut values = vec![];
         while let Ok(val) = self.parser
-            .parse(iter).record_to(&mut info) {
+            .parse(iter, info) {
             values.push(val)
         }
-        info.ok(values)
+        Ok(values)
     }
 }
 
@@ -473,20 +452,16 @@ impl<I, P> Parser<I> for Some<P> where
     type Value = Vec<P::Value>;
     type Error = P::Error;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<Vec<P::Value>, P::Error> {
-        let mut info = ParseInfo::default();
-        let res = (|| {
-            let mut values = vec![
-                self.parser
-                .parse(iter).record_to(&mut info)?
-            ];
-            while let Ok(val) = self.parser
-                .parse(iter).record_to(&mut info) {
-                values.push(val)
-            }
-            Ok(values)
-        })();
-        info.with(res)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<Vec<P::Value>, P::Error> {
+        let mut values = vec![
+            self.parser
+            .parse(iter, info)?
+        ];
+        while let Ok(val) = self.parser
+            .parse(iter, info) {
+            values.push(val)
+        }
+        Ok(values)
     }
 }
 
@@ -513,17 +488,16 @@ impl<I, P, Q> Parser<I> for Least<P, Q> where
     type Value = (Vec<P::Value>, Q::Value);
     type Error = Q::Error;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<(Vec<P::Value>, Q::Value), Q::Error> {
-        let mut info = ParseInfo::default();
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<(Vec<P::Value>, Q::Value), Q::Error> {
         let mut values = vec![];
         loop {
             match self.until
-                .parse(iter).record_to(&mut info) {
-                Ok(u) => break info.ok((values, u)),
+                .parse(iter, info) {
+                Ok(u) => break Ok((values, u)),
                 Err(err) => match self.parser
-                    .parse(iter).record_to(&mut info) {
+                    .parse(iter, info) {
                     Ok(val) => values.push(val),
-                    Err(_) => break info.err(err)
+                    Err(_) => break Err(err)
                 }
             }
         }
@@ -553,8 +527,7 @@ impl<I, P, Q> Parser<I> for Most<P, Q> where
     type Value = (Vec<P::Value>, Q::Value);
     type Error = P::Error;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<(Vec<P::Value>, Q::Value), P::Error> {
-        let mut info = ParseInfo::default();
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<(Vec<P::Value>, Q::Value), P::Error> {
         let mut values_info = vec![];
         let mut end_info = ParseInfo::default();
         let mut values = vec![];
@@ -563,7 +536,7 @@ impl<I, P, Q> Parser<I> for Most<P, Q> where
             let mut val_info = ParseInfo::default();
             let mut child = stack.last().unwrap().clone();
             match self.parser
-                .parse(&mut child).record_to(&mut val_info) {
+                .parse(&mut child, &mut val_info) {
                 Ok(val) => {
                     values_info.push(val_info);
                     stack.push(child);
@@ -579,7 +552,7 @@ impl<I, P, Q> Parser<I> for Most<P, Q> where
         let res = loop {
             let mut parent = stack.pop().unwrap();
             match self.until
-                .parse(&mut parent).record_to(&mut end_info) {
+                .parse(&mut parent, &mut end_info) {
                 Ok(u) => {
                     *iter = parent;
                     break Ok((values, u))
@@ -596,10 +569,10 @@ impl<I, P, Q> Parser<I> for Most<P, Q> where
             }
         };
         for i in values_info {
-            info += i;
+            *info += i;
         };
-        info += end_info;
-        info.with(res)
+        *info += end_info;
+        res
     }
 }
 
@@ -608,14 +581,14 @@ impl<I, P, Q> Parser<I> for Most<P, Q> where
 #[derive(Clone)]
 pub struct Continue<P, Q> {
     parser: P,
-    recover: Q,
+    after: Q,
 }
 
 impl<P, Q> Continue<P, Q> {
-    pub fn new(parser: P, recover: Q) -> Continue<P, Q> {
+    pub fn new(parser: P, after: Q) -> Continue<P, Q> {
         Continue {
             parser,
-            recover,
+            after,
         }
     }
 }
@@ -628,14 +601,12 @@ impl<I, P, Q> Parser<I> for Continue<P, Q> where
     type Value = Result<P::Value, P::Error>;
     type Error = Q::Error;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<Result<P::Value, P::Error>, Q::Error> {
-        let mut info = ParseInfo::default();
-        let inner_res = self.parser
-            .parse(iter).record_to(&mut info);
-        let res = self.recover
-            .parse(iter).record_to(&mut info)
-            .map(|_| inner_res);
-        info.with(res)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<Result<P::Value, P::Error>, Q::Error> {
+        let res = self.parser
+            .parse(iter, info);
+        self.after
+            .parse(iter, info)
+            .map(|_| res)
     }
 }
 
@@ -662,18 +633,14 @@ impl<I, P, Q> Parser<I> for Recover<P, Q> where
     type Value = Result<P::Value, P::Error>;
     type Error = Q::Error;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<Result<P::Value, P::Error>, Q::Error> {
-        let mut info = ParseInfo::default();
-        match self.parser
-            .parse(iter).record_to(&mut info) {
-            Ok(res) => info.ok(Ok(res)),
-            Err(err) => {
-                let res = self.recover
-                    .parse(iter).record_to(&mut info)
-                    .map(|_| Err(err));
-                info.with(res)
-            }
-        }
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<Result<P::Value, P::Error>, Q::Error> {
+        self.parser
+            .parse(iter, info)
+            .map(Result::Ok)
+            .or_else(|err| self.recover
+                .parse(iter, info)
+                .map(|_| Err(err))
+            )
     }
 }
 
@@ -697,12 +664,10 @@ impl<I, P, T, E> Parser<I> for AbsorbErr<P> where
     type Value = T;
     type Error = E;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<T, E> {
-        let mut info = ParseInfo::default();
-        let res = self.parser
-            .parse(iter).record_to(&mut info)
-            .and_then(|inner_res| inner_res);
-        info.with(res)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<T, E> {
+        self.parser
+            .parse(iter, info)
+            .and_then(|inner_res| inner_res)
     }
 }
 
@@ -728,8 +693,8 @@ impl<'p, I, P> Parser<I> for RefParser<'p, P> where
     type Value = P::Value;
     type Error = P::Error;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<P::Value, P::Error> {
-        self.parser.parse(iter)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<P::Value, P::Error> {
+        self.parser.parse(iter, info)
     }
 }
 
@@ -761,8 +726,8 @@ impl<'p, I, T, E> Parser<I> for ForwardDef<'p, I, T, E> where
     type Value = T;
     type Error = E;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<T, E> {
-        self.parser.get().unwrap().parse(iter)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<T, E> {
+        self.parser.get().unwrap().parse(iter, info)
     }
 }
 
@@ -794,8 +759,8 @@ impl<'p, I, T, E> Parser<I> for SyncForwardDef<'p, I, T, E> where
     type Value = T;
     type Error = E;
     
-    fn parse(&self, iter: &mut I) -> ParseResult<T, E> {
-        self.parser.get().unwrap().parse(iter)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<T, E> {
+        self.parser.get().unwrap().parse(iter, info)
     }
 }
 
@@ -841,12 +806,8 @@ impl<I, F, T, E> Parser<I> for Apply0<F, E> where
     type Value = T;
     type Error = E;
 
-    fn parse(&self, _iter: &mut I) -> ParseResult<T, E> {
-        let mut _info = ParseInfo::default();
-        let res = (|| {
-            Ok((self.f)())
-        })();
-        _info.with(res)
+    fn parse(&self, _iter: &mut I, _info: &mut ParseInfo) -> Result<T, E> {
+        Ok((self.f)())
     }
 }
 
@@ -873,14 +834,10 @@ impl<I, F, T, E, P1> Parser<I> for Apply1<F, P1> where
     type Value = T;
     type Error = E;
 
-    fn parse(&self, iter: &mut I) -> ParseResult<T, E> {
-        let mut info = ParseInfo::default();
-        let res = (|| {
-            Ok((self.f)(
-                self.p1.parse(iter).record_to(&mut info)?
-            ))
-        })();
-        info.with(res)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<T, E> {
+        Ok((self.f)(
+            self.p1.parse(iter, info)?
+        ))
     }
 }
 
@@ -910,15 +867,11 @@ impl<I, F, T, E, P1, P2> Parser<I> for Apply2<F, P1, P2> where
     type Value = T;
     type Error = E;
 
-    fn parse(&self, iter: &mut I) -> ParseResult<T, E> {
-        let mut info = ParseInfo::default();
-        let res = (|| {
-            Ok((self.f)(
-                self.p1.parse(iter).record_to(&mut info)?,
-                self.p2.parse(iter).record_to(&mut info)?
-            ))
-        })();
-        info.with(res)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<T, E> {
+        Ok((self.f)(
+            self.p1.parse(iter, info)?,
+            self.p2.parse(iter, info)?
+        ))
     }
 }
 
@@ -951,16 +904,12 @@ impl<I, F, T, E, P1, P2, P3> Parser<I> for Apply3<F, P1, P2, P3> where
     type Value = T;
     type Error = E;
 
-    fn parse(&self, iter: &mut I) -> ParseResult<T, E> {
-        let mut info = ParseInfo::default();
-        let res = (|| {
-            Ok((self.f)(
-                self.p1.parse(iter).record_to(&mut info)?,
-                self.p2.parse(iter).record_to(&mut info)?,
-                self.p3.parse(iter).record_to(&mut info)?
-            ))
-        })();
-        info.with(res)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<T, E> {
+        Ok((self.f)(
+            self.p1.parse(iter, info)?,
+            self.p2.parse(iter, info)?,
+            self.p3.parse(iter, info)?
+        ))
     }
 }
 
@@ -996,16 +945,12 @@ impl<I, F, T, E, P1, P2, P3, P4> Parser<I> for Apply4<F, P1, P2, P3, P4> where
     type Value = T;
     type Error = E;
 
-    fn parse(&self, iter: &mut I) -> ParseResult<T, E> {
-        let mut info = ParseInfo::default();
-        let res = (|| {
-            Ok((self.f)(
-                self.p1.parse(iter).record_to(&mut info)?,
-                self.p2.parse(iter).record_to(&mut info)?,
-                self.p3.parse(iter).record_to(&mut info)?,
-                self.p4.parse(iter).record_to(&mut info)?
-            ))
-        })();
-        info.with(res)
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<T, E> {
+        Ok((self.f)(
+            self.p1.parse(iter, info)?,
+            self.p2.parse(iter, info)?,
+            self.p3.parse(iter, info)?,
+            self.p4.parse(iter, info)?
+        ))
     }
 }

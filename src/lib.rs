@@ -24,18 +24,6 @@ impl ParseInfo {
             read,
         }
     }
-
-    pub fn ok<T, E>(self, val: T) -> ParseResult<T, E> {
-        ParseResult::new(self, Ok(val))
-    }
-
-    pub fn err<T, E>(self, err: E) -> ParseResult<T, E> {
-        ParseResult::new(self, Err(err))
-    }
-
-    pub fn with<T, E>(self, res: Result<T, E>) -> ParseResult<T, E> {
-        ParseResult::new(self, res)
-    }
 }
 
 /// not commutative
@@ -58,34 +46,6 @@ impl std::ops::AddAssign for ParseInfo {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct ParseResult<T, E> {
-    info: ParseInfo,
-    result: Result<T, E>,
-}
-
-impl<T, E> ParseResult<T, E> {
-    pub fn new(info: ParseInfo, result: Result<T, E>) -> ParseResult<T, E> {
-        ParseResult {
-            info,
-            result,
-        }
-    }
-
-    pub fn get_info(&self) -> ParseInfo {
-        self.info
-    }
-
-    pub fn into_result(self) -> Result<T, E> {
-        self.result
-    }
-
-    pub fn record_to(self, info: &mut ParseInfo) -> Result<T, E> {
-        *info += self.get_info();
-        self.into_result()
-    }
-}
-
 pub fn wrap<T, E>(t: T) -> Wrap<T, E> where
     T: Clone
 {
@@ -104,39 +64,36 @@ pub trait Parser<I> where
     type Value;
     type Error;
 
-    fn parse(&self, iter: &mut I) -> ParseResult<Self::Value, Self::Error>;
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<Self::Value, Self::Error>;
 
-    fn attempt_parse(&self, iter: &mut I) -> ParseResult<Self::Value, Self::Error> {
-        let mut info = ParseInfo::default();
+    fn attempt_parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<Self::Value, Self::Error> {
+        let mut inner_info = ParseInfo::default();
         let backup = iter.clone();
-        match self.parse(iter).record_to(&mut info) {
-            Ok(val) => info.ok(val),
-            Err(err) => {
-                *iter = backup;
-                info.taken = 0;
-                info.err(err)
-            }
-        }
+        self.parse(iter, &mut inner_info).map_err(|err| {
+            *iter = backup;
+            inner_info.taken = 0;
+            *info += inner_info;
+            err
+        })
     }
 
-    fn scry_parse(&self, iter: &mut I) -> ParseResult<Self::Value, Self::Error> {
-        let mut info = ParseInfo::default();
+    fn scry_parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<Self::Value, Self::Error> {
+        let mut inner_info = ParseInfo::default();
         let backup = iter.clone();
-        match self.parse(iter).record_to(&mut info) {
-            Ok(val) => {
-                *iter = backup;
-                info.taken = 0;
-                info.ok(val)
-            },
-            Err(err) => info.err(err)
-        }
+        self.parse(iter, &mut inner_info).map(|val| {
+            *iter = backup;
+            inner_info.taken = 0;
+            *info += inner_info;
+            val
+        })
     }
 
-    fn backtrack_parse(&self, iter: &mut I) -> ParseResult<Self::Value, Self::Error> {
-        let mut info = ParseInfo::default();
-        let res = self.parse(&mut iter.clone()).record_to(&mut info);
+    fn backtrack_parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<Self::Value, Self::Error> {
+        let mut inner_info = ParseInfo::default();
+        let res = self.parse(&mut iter.clone(), &mut inner_info);
         info.taken = 0;
-        ParseResult::new(info, res)
+        *info += inner_info; 
+        res
     }
 }
 
@@ -158,7 +115,7 @@ pub trait SizedParser<I>: Parser<I> where
 
     fn memo_if<H, F>(self, handler: H, predicate: F) -> memo::MemoIf<Self, H, F> where
         H: memo::MemoHandler<I, Value=Self::Value, Error=Self::Error>,
-        F: Fn(&ParseResult<Self::Value, Self::Error>) -> bool,
+        F: Fn(ParseInfo, &Result<Self::Value, Self::Error>) -> bool,
         Self::Value: Clone,
         Self::Error: Clone
     {

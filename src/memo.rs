@@ -5,21 +5,22 @@ use std::collections::*;
 pub trait MemoHandler<I> where
     I: Iterator + Clone,
 {
-    type Value: Clone;
-    type Error: Clone;
+    type Value;
+    type Error;
+    type Memory: Parser<I, Value=Self::Value, Error=Self::Error>;
 
-    fn learn(&self, iter: I, res: ParseResult<Self::Value, Self::Error>);
+    fn learn(&self, iter: I, info: ParseInfo, res: Result<Self::Value, Self::Error>);
 
-    fn recall(&self, iter: I) -> Option<ParseResult<Self::Value, Self::Error>>;
+    fn recall(&self) -> Option<Self::Memory>;
 }
 
 #[derive(Default)]
 pub struct MemoSingular<C, T, E> {
-    pair: std::cell::RefCell<Option<(C, ParseResult<T, E>)>>
+    pair: std::cell::RefCell<Option<(C, ParseInfo, Result<T, E>)>>
 }
 
 impl<C, T, E> MemoSingular<C, T, E> {
-    pub fn new(collection: C, p_res: ParseResult<T, E>) -> MemoSingular<C, T, E> {
+    pub fn new(collection: C, p_res: Result<T, E>) -> MemoSingular<C, T, E> {
         MemoSingular {
             pair: std::cell::RefCell::new(Some((collection, p_res)))
         }
@@ -37,33 +38,34 @@ impl<I, C, T, E> MemoHandler<I> for MemoSingular<C, T, E> where
     type Value = T;
     type Error = E;
 
-    fn learn(&self, iter: I, p_res: ParseResult<T, E>) {
+    fn learn(&self, iter: I, info: ParseInfo, res: Result<T, E>) {
         *self.pair.borrow_mut() = Some((
-            iter.take(p_res.info.read).collect::<C>(),
-            p_res
+            iter.take(info.read).collect::<C>(),
+            info,
+            res
         ))
     }
 
-    fn recall(&self, mut iter: I) -> Option<ParseResult<T, E>> {
+    fn recall(&self, iter: &mut I, ) -> Option<Result<T, E>> {
         self.pair.borrow()
             .as_ref()
-            .and_then(|(collection, p_res)| {
+            .and_then(|(collection, inner_info, res)| {
                 for col_token in collection {
                     iter.next()
                         .filter(|token| token == col_token)?;
                 };
-                Some(p_res.clone())
+                Some(res.clone())
             })
     }
 }
 
 #[derive(Default)]
 pub struct SyncMemoSingular<C, T, E> {
-    pair: std::sync::RwLock<Option<(C, ParseResult<T, E>)>>
+    pair: std::sync::RwLock<Option<(C, Result<T, E>)>>
 }
 
 impl<C, T, E> SyncMemoSingular<C, T, E> {
-    pub fn new(collection: C, p_res: ParseResult<T, E>) -> SyncMemoSingular<C, T, E> {
+    pub fn new(collection: C, p_res: Result<T, E>) -> SyncMemoSingular<C, T, E> {
         SyncMemoSingular {
             pair: std::sync::RwLock::new(Some((collection, p_res)))
         }
@@ -81,14 +83,14 @@ impl<I, C, T, E> MemoHandler<I> for SyncMemoSingular<C, T, E> where
     type Value = T;
     type Error = E;
 
-    fn learn(&self, iter: I, p_res: ParseResult<T, E>) {
+    fn learn(&self, iter: I, p_res: Result<T, E>) {
         *self.pair.write().unwrap() = Some((
             iter.take(p_res.info.read).collect::<C>(),
             p_res
         ))
     }
 
-    fn recall(&self, mut iter: I) -> Option<ParseResult<T, E>> {
+    fn recall(&self, mut iter: I) -> Option<Result<T, E>> {
         self.pair.read().unwrap()
             .as_ref()
             .and_then(|(collection, p_res)| {
@@ -124,7 +126,7 @@ impl<I, F, K, H> MemoHandler<I> for MemoMap<F, K, H> where
     type Value = H::Value;
     type Error = H::Error;
 
-    fn learn(&self, iter: I, res: ParseResult<Self::Value, Self::Error>) {
+    fn learn(&self, iter: I, res: Result<Self::Value, Self::Error>) {
         let key = (self.key_func)(&iter);
         if let Some(handler) = self.handler_map.borrow().get(&key) {
             handler.learn(iter, res);
@@ -137,7 +139,7 @@ impl<I, F, K, H> MemoHandler<I> for MemoMap<F, K, H> where
         }
     }
 
-    fn recall(&self, iter: I) -> Option<ParseResult<Self::Value, Self::Error>> {
+    fn recall(&self, iter: I) -> Option<Result<Self::Value, Self::Error>> {
         let key = (self.key_func)(&iter);
         self.handler_map.borrow()
             .get(&key)
@@ -170,7 +172,7 @@ impl<I, F, K, H> MemoHandler<I> for SyncMemoMap<F, K, H> where
     type Value = H::Value;
     type Error = H::Error;
 
-    fn learn(&self, iter: I, res: ParseResult<Self::Value, Self::Error>) {
+    fn learn(&self, iter: I, res: Result<Self::Value, Self::Error>) {
         let key = (self.key_func)(&iter);
         if let Some(handler) = self.handler_map.read().unwrap().get(&key) {
             handler.learn(iter, res);
@@ -183,7 +185,7 @@ impl<I, F, K, H> MemoHandler<I> for SyncMemoMap<F, K, H> where
         }
     }
 
-    fn recall(&self, iter: I) -> Option<ParseResult<Self::Value, Self::Error>> {
+    fn recall(&self, iter: I) -> Option<Result<Self::Value, Self::Error>> {
         let key = (self.key_func)(&iter);
         self.handler_map.read().unwrap()
             .get(&key)
@@ -218,14 +220,15 @@ impl<I, P, H, T, E> Parser<I> for Memo<P, H> where
     type Value = T;
     type Error = E;
 
-    fn parse(&self, iter: &mut I) -> ParseResult<T, E> {
-        if let Some(p_res) = self.handler.recall(iter.clone()) {
-            return p_res;
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<T, E> {
+        if let Some(res) = self.handler.recall(iter, info) {
+            return res;
         }
+        let mut inner_info = ParseInfo::default();
         let start_iter = iter.clone();
-        let p_res = self.parser.parse(iter);
-        self.handler.learn(start_iter, p_res.clone());
-        p_res
+        let res = self.parser.parse(iter, &mut inner_info);
+        self.handler.learn(start_iter, inner_info, res.clone());
+        res
     }
 }
 
@@ -250,22 +253,23 @@ impl<I, P, H, F, T, E> Parser<I> for MemoIf<P, H, F> where
     I: Iterator + Clone,
     P: Parser<I, Value=T, Error=E>,
     H: MemoHandler<I, Value=T, Error=E>,
-    F: Fn(&ParseResult<T, E>) -> bool,
+    F: Fn(ParseInfo, &Result<T, E>) -> bool,
     T: Clone,
     E: Clone
 {
     type Value = T;
     type Error = E;
 
-    fn parse(&self, iter: &mut I) -> ParseResult<T, E> {
-        if let Some(p_res) = self.handler.recall(iter.clone()) {
-            return p_res;
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<T, E> {
+        if let Some(res) = self.handler.recall(iter, info) {
+            return res;
         }
+        let mut inner_info = ParseInfo::default();
         let start_iter = iter.clone();
-        let p_res = self.parser.parse(iter);
-        if (self.predicate)(&p_res) {
-            self.handler.learn(start_iter, p_res.clone());
+        let res = self.parser.parse(iter, &mut inner_info);
+        if (self.predicate)(inner_info, &res) {
+            self.handler.learn(start_iter, inner_info, res.clone());
         }
-        p_res
+        res
     }
 }
