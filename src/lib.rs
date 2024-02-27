@@ -105,23 +105,6 @@ pub trait SizedParser<I>: Parser<I> where
     I: Iterator + Clone,
     Self: Sized
 {
-    fn memo<H>(self, handler: H) -> memo::Memo<Self, H> where
-        H: memo::MemoHandler<I, Self::Value, Self::Error>,
-        Self::Value: Clone,
-        Self::Error: Clone
-    {
-        memo::Memo::new(self, handler)
-    }
-
-    fn memo_if<H, F>(self, handler: H, predicate: F) -> memo::MemoIf<Self, H, F> where
-        H: memo::MemoHandler<I, Self::Value, Self::Error>,
-        F: Fn(ParseInfo, &Result<Self::Value, Self::Error>) -> bool,
-        Self::Value: Clone,
-        Self::Error: Clone
-    {
-        memo::MemoIf::new(self, handler, predicate)
-    }
-
     fn reference<'p>(&'p self) -> RefParser<'_, Self> {
         RefParser::new(self)
     }
