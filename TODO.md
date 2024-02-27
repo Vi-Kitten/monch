@@ -11,3 +11,4 @@
 - [x] Create errors.rs for handling errors and providing a specific error type
     - [ ] Populate errors.rs with error utilities
 - [ ] Test the until parsers EXTENSIVELY
+- [ ] Make eligible combinators presere MemoHandler status
