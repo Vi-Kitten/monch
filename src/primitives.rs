@@ -98,46 +98,6 @@ impl<I, T, const N: usize> Parser<I> for ExpectTokens<T, N> where
 }
 
 #[derive(Clone)]
-pub struct Region<S, B>{
-    name: String,
-    start: S,
-    body: B,
-}
-
-impl<S, B> Region<S, B> {
-    pub fn new(name: String, start: S, body: B) -> Region<S, B> {
-        Region {
-            name,
-            start,
-            body,
-        }
-    }
-}
-
-impl<I, S, B> Parser<I> for Region<S, B> where
-    I: Iterator + Clone,
-    S: Parser<I>,
-    B: Parser<I>
-{
-    type Value = B::Value;
-    type Error = Result<super::errors::BranchInternalError<B::Error>, super::errors::BranchEntryError<S::Error>>;
-
-    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<Self::Value, Self::Error> {
-        self.start
-            .parse(iter, info)
-            .map_err(|err|
-                Result::Err(super::errors::BranchEntryError(self.name.clone(), err))
-            )
-            .and_then(|_| self.body
-                .parse(iter, info)
-                .map_err(|err|
-                    Result::Ok(super::errors::BranchInternalError(self.name.clone(), err))
-                )
-            )
-    }
-}
-
-#[derive(Clone)]
 pub struct Arrow<F> {
     func: F,
 }
