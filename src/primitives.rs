@@ -64,6 +64,87 @@ impl<I, T, E> Parser<I> for Fail<T, E> where
 }
 
 #[derive(Clone)]
+pub struct ExpectTokens<T, const N: usize> {
+    expect: [T; N],
+}
+
+impl<T, const N: usize> ExpectTokens<T, N> {
+    pub fn new(expect: [T; N]) -> ExpectTokens<T, N> {
+        ExpectTokens {
+            expect,
+        }
+    }
+}
+
+impl<I, T, const N: usize> Parser<I> for ExpectTokens<T, N> where
+    I: Iterator<Item=T> + Clone,
+    T: Eq + Clone,
+{
+    type Value = [T; N];
+    type Error = [T; N];
+
+    fn parse(&self, iter: &mut I) -> ParseResult<[T; N], [T; N]> {
+        let mut info = ParseInfo::new(0, N);
+        let res = (|| Some({
+            for expected_token in &self.expect {
+                iter.next()
+                    .filter(|found_token| {
+                        info.taken += 1;
+                        found_token == expected_token
+                    })?;
+            }
+        }))()
+            .map(|_| self.expect.clone())
+            .ok_or_else(|| self.expect.clone());
+        info.with(res)
+    }
+}
+
+#[derive(Clone)]
+pub struct Region<S, B>{
+    name: String,
+    start: S,
+    body: B,
+}
+
+impl<S, B> Region<S, B> {
+    pub fn new(name: String, start: S, body: B) -> Region<S, B> {
+        Region {
+            name,
+            start,
+            body,
+        }
+    }
+}
+
+impl<I, S, B> Parser<I> for Region<S, B> where
+    I: Iterator + Clone,
+    S: Parser<I>,
+    B: Parser<I>
+{
+    type Value = B::Value;
+    type Error = Result<super::errors::BranchInternalError<B::Error>, super::errors::BranchEntryError<S::Error>>;
+
+    fn parse(&self, iter: &mut I) -> ParseResult<Self::Value, Self::Error> {
+        let mut info = ParseInfo::default();
+        let res = self.start
+            .parse(iter)
+            .record_to(&mut info)
+            .map_err(|err|
+                Result::Err(super::errors::BranchEntryError(self.name.clone(), err))
+            )
+            .and_then(|_| self.body
+                .parse(iter)
+                .record_to(&mut info)
+                .map_err(|err|
+                    Result::Ok(super::errors::BranchInternalError(self.name.clone(), err))
+                )
+            );
+        info.with(res)
+    }
+}
+
+#[derive(Clone)]
 pub struct Arrow<F> {
     func: F,
 }
