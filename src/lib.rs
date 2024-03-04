@@ -5,7 +5,8 @@
 mod tests;
 pub mod combinators;
 pub mod primitives;
-pub mod errors; 
+pub mod errors;
+pub mod text;
 pub mod memo;
 
 use combinators::*;
@@ -132,8 +133,12 @@ pub trait SizedParser<I>: Parser<I> where
         RefParser::new(self)
     }
 
-    fn discard(self) -> Map<Self, impl Fn(Self::Value) -> ()> {
-        self.map(|_| ())
+    fn discard<U: Default>(self) -> Map<Self, impl Fn(Self::Value) -> U> {
+        self.map(|_| U::default())
+    }
+
+    fn silence<F: Default>(self) -> MapErr<Self, impl Fn(Self::Error) -> F> {
+        self.map_err(|_| F::default())
     }
 
     fn lense<J, F>(self, f: F) -> Lense<Self, F> where

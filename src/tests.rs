@@ -27,7 +27,7 @@ impl<I> Parser<I> for Expect where
         let found = iter.take(self.expect.len()).collect::<String>();
         *info += ParseInfo::new(found.len(), self.expect.len());
         if found == self.expect {
-            Ok(self.expect.clone())
+            Ok(found)
         } else {
             Err(self.err.clone())
         }

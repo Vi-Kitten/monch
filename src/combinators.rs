@@ -504,6 +504,7 @@ impl<I, P, Q> Parser<I> for Least<P, Q> where
     }
 }
 
+// already attempts due to creation of stack structure
 #[derive(Clone)]
 pub struct Most<P, Q> {
     parser: P,
@@ -559,7 +560,6 @@ impl<I, P, Q> Parser<I> for Most<P, Q> where
                 },
                 Err(_) => {
                     if let None = values.pop() {
-                        *iter = parent;
                         break Err(err)
                     }
                     let val_info = values_info.pop().unwrap();

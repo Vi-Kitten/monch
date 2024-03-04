@@ -98,6 +98,46 @@ impl<I, T, const N: usize> Parser<I> for ExpectTokens<T, N> where
 }
 
 #[derive(Clone)]
+pub struct ParseWhile<F, Tokens> {
+    pred: F,
+    _t: PhantomData<Tokens>,
+}
+
+impl<F, Tokens> ParseWhile<F, Tokens> {
+    pub fn new(pred: F) -> ParseWhile<F, Tokens> {
+        ParseWhile {
+            pred,
+            _t: PhantomData,
+        }
+    }
+}
+
+impl<I, F, Tokens> Parser<I> for ParseWhile<F, Tokens> where
+    I: Iterator + Clone,
+    F: Fn(&I::Item) -> bool,
+    Tokens: FromIterator<I::Item>
+{
+    type Value = Tokens;
+    type Error = ();
+
+    fn parse(&self, iter: &mut I, info: &mut ParseInfo) -> Result<Tokens, ()> {
+        Ok(
+            iter
+                .map(|token| {
+                    info.read += 1;
+                    token
+                })
+                .take_while(&self.pred)
+                .map(|token| {
+                    info.taken += 1;
+                    token
+                })
+                .collect::<Tokens>()
+        )
+    }
+}
+
+#[derive(Clone)]
 pub struct Arrow<F> {
     func: F,
 }
